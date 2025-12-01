@@ -1,0 +1,27 @@
+{
+  "name": "cpu-test-browser-extension",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev:chrome": "vite --mode chrome",
+    "dev:firefox": "vite --mode firefox",
+    "build:chrome": "cross-env vite build --mode chrome",
+    "build:firefox": "cross-env vite build --mode firefox"
+  },
+  "dependencies": {
+    "vue": "^3.3"
+  },
+  "devDependencies": {
+    "@types/webextension-polyfill": "^0.10.0",
+    "@vitejs/plugin-vue": "^4.5.0",
+    "cross-env": "^10.0.0",
+    "less": "^4.4.1",
+    "npm-run-all": "^4.1.5",
+    "typescript": "~5.6.3",
+    "vite": "^5.0.0",
+    "vite-plugin-web-extension": "^4.0.0",
+    "vue-tsc": "^1.2.0",
+    "webextension-polyfill": "^0.10.0"
+  }
+}
