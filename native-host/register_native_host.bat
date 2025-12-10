@@ -1,49 +1,49 @@
 @echo off
 chcp 65001 >nul
-title 注册RealVNC原生主机 - 浏览器扩展
+title RealVNC Native Host Registration - Browser Extension
 
 echo.
 echo ========================================
-echo    RealVNC原生主机注册脚本
+echo    RealVNC Native Host Registration Script
 echo ========================================
 echo.
 
-echo 正在检查系统环境...
+echo Checking system environment...
 
-:: 检查是否以管理员权限运行
+:: Check if running with administrator privileges
 net session >nul 2>&1
 if %errorLevel% neq 0 (
-    echo 错误：请以管理员权限运行此脚本！
-    echo 右键点击脚本，选择"以管理员身份运行"
+    echo ERROR: Please run this script as Administrator!
+    echo Right-click the script and select "Run as administrator"
     pause
     exit /b 1
 )
 
-echo ✅ 管理员权限验证通过
+echo [SUCCESS] Administrator privileges verified
 
-:: 获取脚本所在目录
+:: Get script directory
 set "SCRIPT_DIR=%~dp0"
 set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
 
-:: 检查必要的文件是否存在
+:: Check if necessary files exist
 if not exist "%SCRIPT_DIR%\com.realvnc.vncviewer.json" (
-    echo ❌ 错误：找不到配置文件 com.realvnc.vncviewer.json
+    echo [ERROR] Configuration file not found: com.realvnc.vncviewer.json
     pause
     exit /b 1
 )
 
 if not exist "%SCRIPT_DIR%\realvnc_launcher.bat" (
-    echo ❌ 错误：找不到启动脚本 realvnc_launcher.bat
+    echo [ERROR] Launcher script not found: realvnc_launcher.bat
     pause
     exit /b 1
 )
 
-echo ✅ 必要的文件检查通过
+echo [SUCCESS] Required files verified
 
-:: 更新JSON文件中的路径（确保使用绝对路径）
-echo 正在更新配置文件路径...
+:: Update JSON file paths (ensure absolute paths)
+echo Updating configuration file paths...
 
-:: 创建临时配置文件
+:: Create temporary configuration file
 set "TEMP_JSON=%TEMP%\realvnc_temp.json"
 (
     echo {
@@ -57,75 +57,75 @@ set "TEMP_JSON=%TEMP%\realvnc_temp.json"
     echo }
 ) > "%TEMP_JSON%"
 
-echo ✅ 配置文件路径已更新
+echo [SUCCESS] Configuration file paths updated
 
-:: 注册到Chrome
+:: Register with Chrome
 echo.
-echo 正在注册到Chrome浏览器...
+echo Registering with Chrome browser...
 reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.realvnc.vncviewer" /ve /t REG_SZ /d "%SCRIPT_DIR%\com.realvnc.vncviewer.json" /f
 if %errorLevel% equ 0 (
-    echo ✅ Chrome注册成功
+    echo [SUCCESS] Chrome registration successful
 ) else (
-    echo ❌ Chrome注册失败
+    echo [ERROR] Chrome registration failed
     goto :error_cleanup
 )
 
-:: 注册到Chromium
+:: Register with Chromium
 echo.
-echo 正在注册到Chromium浏览器...
+echo Registering with Chromium browser...
 reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Chromium\NativeMessagingHosts\com.realvnc.vncviewer" /ve /t REG_SZ /d "%SCRIPT_DIR%\com.realvnc.vncviewer.json" /f
 if %errorLevel% equ 0 (
-    echo ✅ Chromium注册成功
+    echo [SUCCESS] Chromium registration successful
 ) else (
-    echo ⚠️  Chromium注册失败（可能未安装）
+    echo [WARNING] Chromium registration failed (may not be installed)
 )
 
-:: 注册到Microsoft Edge
+:: Register with Microsoft Edge
 echo.
-echo 正在注册到Microsoft Edge浏览器...
+echo Registering with Microsoft Edge browser...
 reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Edge\NativeMessagingHosts\com.realvnc.vncviewer" /ve /t REG_SZ /d "%SCRIPT_DIR%\com.realvnc.vncviewer.json" /f
 if %errorLevel% equ 0 (
-    echo ✅ Microsoft Edge注册成功
+    echo [SUCCESS] Microsoft Edge registration successful
 ) else (
-    echo ⚠️  Microsoft Edge注册失败（可能未安装）
+    echo [WARNING] Microsoft Edge registration failed (may not be installed)
 )
 
-:: 检查是否安装了Firefox
+:: Check if Firefox is installed
 reg query "HKEY_LOCAL_MACHINE\SOFTWARE\Mozilla" >nul 2>&1
 if %errorLevel% equ 0 (
     echo.
-    echo 检测到Firefox，正在注册到Firefox浏览器...
+    echo Firefox detected, registering with Firefox browser...
     reg add "HKEY_LOCAL_MACHINE\SOFTWARE\Mozilla\NativeMessagingHosts\com.realvnc.vncviewer" /ve /t REG_SZ /d "%SCRIPT_DIR%\com.realvnc.vncviewer.json" /f
     if %errorLevel% equ 0 (
-        echo ✅ Firefox注册成功
+        echo [SUCCESS] Firefox registration successful
     ) else (
-        echo ⚠️  Firefox注册失败
+        echo [WARNING] Firefox registration failed
     )
 )
 
 echo.
 echo ========================================
-echo           注册完成！
+echo          Registration Complete!
 echo ========================================
 echo.
-echo ✅ 原生主机已成功注册到以下浏览器：
+echo [SUCCESS] Native host successfully registered to the following browsers:
 echo    - Google Chrome
 echo    - Microsoft Edge
 echo    - Chromium
 echo.
-echo 📍 注册表路径：
-echo    HKEY_LOCAL_MACHINE\SOFTWARE\[浏览器]\NativeMessagingHosts\com.realvnc.vncviewer
+echo Registry paths:
+echo    HKEY_LOCAL_MACHINE\SOFTWARE\[Browser]\NativeMessagingHosts\com.realvnc.vncviewer
 echo.
-echo 🔧 配置文件路径：
+echo Configuration file path:
 echo    %SCRIPT_DIR%\com.realvnc.vncviewer.json
 echo.
-echo 🚀 启动脚本路径：
+echo Launcher script path:
 echo    %SCRIPT_DIR%\realvnc_launcher.bat
 echo.
-echo ⚠️  注意：请确保已安装Python 3.7+ 和 RealVNC Viewer
+echo Note: Please ensure Python 3.7+ and RealVNC Viewer are installed
 echo.
 
-:: 清理临时文件
+:: Clean up temporary files
 if exist "%TEMP_JSON%" del "%TEMP_JSON%"
 
 pause
@@ -133,11 +133,11 @@ exit /b 0
 
 :error_cleanup
 echo.
-echo ❌ 注册过程中出现错误
-echo 请检查：
-echo 1. 是否以管理员权限运行
-echo 2. 注册表权限是否足够
-echo 3. 文件路径是否正确
+echo [ERROR] Registration failed
+echo Please check:
+echo 1. Administrator privileges
+echo 2. Registry permissions
+echo 3. File paths
 echo.
 if exist "%TEMP_JSON%" del "%TEMP_JSON%"
 pause
