@@ -1,9 +1,10 @@
 <!-- hostList.vue -->
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { releaseHost, hostInfo } from '/@/api/host'
 import { notify, info, success, warning, error } from '/@/utils/notification'
 import browser from "webextension-polyfill";
+import { showModal } from '../utils/modal'
 
 // 定义列表条目接口
 interface ListItem {
@@ -15,55 +16,108 @@ interface ListItem {
 // 定义props
 const props = defineProps({
   hostList: {
-    type: Array as () => ListItem[],
+    type: Array as () => Record<string, any>[],
     default: () => []
   },
   isTc: {
     type: Boolean,
     default: false
-  }
+  },
+  isShow: {
+    type: Boolean,
+    default: false
+  },
+  userId: {
+    type: String,
+    default: ''
+  },
+
 })
 
 // 单选选中的索引
 const selectedIndex = ref(0)
 
+// host-list-content元素的ref
+const hostListContentRef = ref<HTMLElement | null>(null)
+
 // 定义组件事件
 interface Emits {
   (e: 'itemClick', item: ListItem): void
+  (e: 'connect', hostRecId: string): void
+  (e: 'loading'): void
+  (e: 'scrollToBottom'): void // 新增滚动到底部事件
 }
 
 // 定义props和emits
 const emits = defineEmits<Emits>()
 
 // 处理条目点击事件
-const handleItemClick = (item: ListItem, index: number) => {
+const handleItemClick = (item: Record<string, any>, index: number) => {
   selectedIndex.value = index
-  emits('itemClick', item)
+  emits('itemClick', item as ListItem)
 }
 
 // 连接到所选host
 const handleConnectClick = () => {
-  hostInfo({id: props.hostList[selectedIndex.value].host_id}).then((res) => {
+  emits('loading')
+
+  
+  hostInfo({id: props.hostList[selectedIndex.value].host_rec_id || props.hostList[selectedIndex.value].host_id}).then((res) => {
+
+    // @ts-ignore
+    const data = res.data
       browser.runtime.sendMessage({
           type: 'vncConnect',
-          hostInfo: res
+          hostInfo: {
+            host: data.ip,
+            port: data.port,
+            password: data.password,
+            username: data.username,
+          }
       }).then((res: Record<string, any>) => {
-        console.log('VNC连接成功:', res)
+        if (res.success) {
+          success('VNC连接成功')
+          emits('connect', props.hostList[selectedIndex.value].host_rec_id)
+        } else {
+          emits('connect', '')
+          error('VNC连接失败', res.error)
+        }
       }).catch((err: Record<string, any>) => {
-        console.error('VNC连接失败:', err)
+        error('VNC连接失败', err.message)
+        emits('connect', '')
       })
   }).catch(() => {
     error('获取 vnc 信息失败')
+    emits('connect', '')
   })
 }
 
 // 放弃恢复连接
 const handleAbortClick = () => {
-  releaseHost({host_id: props.hostList[selectedIndex.value].host_id}).then(() => {
-    success('已放弃恢复连接')
-  }).catch(() => {
-    error('放弃恢复连接失败')
-  })
+
+    // 使用函数式弹窗
+    showModal({
+      title: '操作确认',
+      msg: '确定要释放此host的连接吗？',
+      showConfirm: true,
+      confirmText: '确定',
+      showCancel: true,
+      cancelText: '取消',
+      maskClosable: true,
+      onConfirm: () => {
+        releaseHost({ user_id: props.userId,
+          host_list: [
+            props.hostList[selectedIndex.value].host_id
+          ]
+        }).then(() => {
+          success('已放弃恢复连接')
+          // 从列表中删除此host
+          props.hostList.splice(selectedIndex.value, 1)
+        }).catch(() => {
+          error('放弃恢复连接失败')
+        })
+      }
+    })
 }
 
 // 监听hostList变化，重置选中索引
@@ -73,74 +127,114 @@ watch(() => props.hostList, (newList) => {
   }
 }, { immediate: true })
 
+// 滚动监听函数
+const handleScroll = () => {
+  if (!hostListContentRef.value) return
+  
+  const element = hostListContentRef.value
+  const scrollTop = element.scrollTop
+  const scrollHeight = element.scrollHeight
+  const clientHeight = element.clientHeight
+  
+  // 判断是否滚动到底部（距离底部10px以内）
+  const isBottom = scrollHeight - scrollTop - clientHeight <= 10
+  
+  if (isBottom) {
+    console.log('滚动条已滑动到底部')
+    emits('scrollToBottom')
+  }
+}
+
+// 组件挂载时添加滚动监听
+onMounted(() => {
+  if (hostListContentRef.value) {
+    hostListContentRef.value.addEventListener('scroll', handleScroll)
+  }
+})
+
+// 组件卸载时移除滚动监听
+onUnmounted(() => {
+  if (hostListContentRef.value) {
+    hostListContentRef.value.removeEventListener('scroll', handleScroll)
+  }
+})
+
 
 </script>
 
 <template>
-  <div class="host-list-container">
-    
-    <div class="host-list-content">
-      <div
-        v-for="(item, index) in hostList"
-        :key="item.host_id"
-        class="host-list-item"
-        :class="{ 'selected': index === selectedIndex }"
-        @click="handleItemClick(item, index)"
-      >
-        <!-- 单选圆圈 -->
-        <div class="radio-circle">
-          <div class="radio-inner" :class="{ 'selected': index === selectedIndex }"></div>
+    <div class="host-list-container" :class="{'host-list-container-show': !isShow}">
+      
+      <div class="host-list-content" ref="hostListContentRef">
+        <div
+          v-for="(item, index) in hostList"
+          :key="item.host_id"
+          class="host-list-item"
+          :class="{ 'selected': index === selectedIndex }"
+          @click="handleItemClick(item, index)"
+        >
+          <!-- 单选圆圈 -->
+          <div class="radio-circle">
+            <div class="radio-inner" :class="{ 'selected': index === selectedIndex }"></div>
+          </div>
+          
+          <!-- 用户名称 -->
+          <div class="host-list-item-label">{{ item.host_ip }}：{{ item.user_name }}</div>
         </div>
-        
-        <!-- 用户名称 -->
-        <div class="host-list-item-label">{{ item.user_name }}</div>
       </div>
+      
+      <button 
+        class="nav-button up-button" 
+        @click="handleConnectClick"
+      >
+        连接所选host
+      </button>
+      <button 
+        class="nav-button down-button" 
+        @click="handleAbortClick"
+        v-show="!isTc"
+      >
+        放弃恢复连接
+      </button>
     </div>
-    
-    <button 
-      class="nav-button up-button" 
-      @click="handleConnectClick"
-      :disabled="selectedIndex <= 0"
-    >
-      连接所选host
-    </button>
-    <button 
-      class="nav-button down-button" 
-      @click="handleAbortClick"
-      v-show="!isTc"
-      :disabled="selectedIndex >= hostList.length - 1"
-    >
-      放弃恢复连接
-    </button>
-  </div>
 </template>
 
 <style scoped lang="less">
+  
 .host-list-container {
   display: flex;
   flex-direction: column;
-  width: 100%;
+  transition: max-width 0.15s ease-in-out, max-height 0.15s ease-in-out;
+  // width: 100%;
+  max-width: 30vh;
   max-height: 25vh;
-  background-color: #f5f5f5;
   border-radius: 1vh;
-  padding: 0.5vh;
   box-sizing: border-box;
   font-size: 1.4vh;
-  gap: 0.5vh;
+  gap: 1vh;
+  overflow: hidden;
+  margin: 1vh 0;
+}
+
+.host-list-container-show{
+  max-width: 0;
+  max-height: 0vh;
+  margin: 0;
 }
 
 .nav-button {
-  width: 100%;
+  width: calc(100% - 2vh);
   height: 3vh;
   border: none;
   border-radius: 0.5vh;
   cursor: pointer;
-  font-size: 1.6vh;
+  font-size: 1.2vh;
   font-weight: bold;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin: 0 1vh;
   
   &:disabled {
     opacity: 0.5;
@@ -158,17 +252,18 @@ watch(() => props.hostList, (newList) => {
 }
 
 .up-button {
-  background-color: #2196f3; /* 蓝色 */
+  background-color: #00B0F0; /* 蓝色 */
   color: white;
   
   &:not(:disabled):hover {
-    background-color: #1976d2;
+    background-color: #00B0F0;
   }
 }
 
 .down-button {
   background-color: #9e9e9e; /* 灰色 */
   color: white;
+  margin-bottom: 1vh;
   
   &:not(:disabled):hover {
     background-color: #757575;
@@ -180,6 +275,10 @@ watch(() => props.hostList, (newList) => {
   max-height: 18vh;
   overflow-y: auto;
   overflow-x: hidden;
+  margin: 1vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5vh;
   
   /* 隐藏滚动条但保持功能 */
   &::-webkit-scrollbar {

@@ -3,8 +3,8 @@
 import { ref, onMounted, computed, onUnmounted, watch } from 'vue'
 import { CallbackEntity, MainPosition, MainParam } from '/@/entity/main'
 import HostList from './hostList.vue'
-import { getUserInfo } from '/@/api/auth'
-import { getRetryList, getAvailableList } from '/@/api/host'
+import { getUserInfo, userAuth } from '/@/api/auth'
+import { getRetryList, getAvailableList, reportConnect } from '/@/api/host'
 
 /**
  * 背景颜色： 蓝色(blue)、红色(warning)
@@ -24,23 +24,39 @@ const mainParam = ref<MainParam>({
 })
 
 const userInfo = ref({
-  userId: '',
-  userName: '',
+  access_token: '',
+  expires_in: 0,
+  token_type: '',
+  user: {
+    administrator: false,
+    authorized: true,
+    email: '',
+    full_name: '',
+    idsid: '',
+    name: '',
+    wwid: '',
+  }
 })
 
-const hostList = ref([])
+const tcId = ref('')
+
+const hostList = ref<Record<string, any>[]>([])
 
 const monitorHost = ['hsdes-pre.intel.com', 'hsdes.intel.com']
+
+const tcIdEl = ref<MutationRecord | null>(null)
 
 // 监听路由变化，以修改是否处于可抓取 tc_id 的状态
 const observeUrlChanges = () => {
   if(monitorHost.concat(location.hostname)){
     console.log('路由变化', location)
-    if(location.pathname.startsWith('/appstore/phonenix/execution')){
-      mainParam.value.isTc = true
-    }
+    checkTcPage()
   }
 };
+
+const checkTcPage = (): void => {
+  mainParam.value.isTc = location.pathname == '/appstore/phoenix/execution'
+}
 
 // 监听浏览器前进/后退
 window.addEventListener('popstate', observeUrlChanges);
@@ -61,15 +77,50 @@ const urlObserver = new MutationObserver((mutations) => {
       observeUrlChanges();
     }
     
-    // 检查是否有路由相关的属性变化
-    if (mutation.type === 'attributes' && 
-        (mutation.attributeName === 'class' || mutation.attributeName === 'data-route')) {
-      observeUrlChanges();
+    if(mainParam.value.isTc){
+      
+      if(mutation.target instanceof HTMLElement && mutation.target.classList.contains('selected')){
+        if(tcIdEl.value){
+          setTimeout(() => {
+            updateTcId()
+          }, 100);
+        }
+      }
+      if(mutation.target instanceof HTMLElement && mutation.target.classList.contains('record-hierarchy-container')){
+        const text = mutation.target.innerText
+        const arr = text.split('[TC ID')
+        if(arr.length > 1){
+          tcIdEl.value = mutation
+          const id = arr[1].replace(']', '').trim()
+          if(id != tcId.value){
+            tcId.value = id
+            hostListReload()
+            console.log('tcId', tcId.value)
+          }
+        }
+      }
     }
+    
   });
 });
 
-// 开始观察整个文档的变化
+const updateTcId = () => {
+  if(tcIdEl.value){
+    // @ts-ignore
+    const text = tcIdEl.value.target.innerText
+    const arr = text.split('[TC ID')
+    if(arr.length > 1){
+      const id = arr[1].replace(']', '').trim()
+      if(id != tcId.value){
+        tcId.value = id
+        hostListReload()
+        console.log('tcId', tcId.value)
+      }
+    }
+  }
+}
+
+
 urlObserver.observe(document, {
   childList: true,
   subtree: true,
@@ -77,281 +128,6 @@ urlObserver.observe(document, {
   attributeFilter: ['class', 'data-route', 'href']
 });
 
-// 设置轮询检查（作为备用方案）
-let lastUrl = location.href;
-const urlPolling = setInterval(() => {
-  if (location.href !== lastUrl) {
-    lastUrl = location.href;
-    observeUrlChanges();
-  }
-}, 1000); // 每秒检查一次
-
-// 清理函数（如果需要）
-const cleanupUrlListeners = () => {
-  window.removeEventListener('popstate', observeUrlChanges);
-  window.removeEventListener('hashchange', observeUrlChanges);
-  urlObserver.disconnect();
-  clearInterval(urlPolling);
-};
-
-// 初始调用一次
-observeUrlChanges();
-
-// ==================== 监听页面变化和抓取单选框功能 ====================
-
-// 监听页面变化的MutationObserver
-let pageObserver: MutationObserver | null = null;
-// 抓取定时器
-let captureTimer: number | null = null;
-// 当前抓取状态
-let isCapturing = false;
-// 上次抓取到的内容
-let lastCapturedContent = '';
-// 当前单选框状态
-let currentRadioState = '';
-
-/**
- * 获取页面所有单选框（排除插件自身）
- */
-const getAllRadios = (): NodeListOf<HTMLInputElement> => {
-  // 获取页面所有input[type="radio"]元素
-  const allRadios = document.querySelectorAll('input[type="radio"]');
-  
-  // 过滤掉插件自身的单选框
-  const filteredRadios = Array.from(allRadios).filter(radio => {
-    // 检查是否在插件容器内
-    const isInExtension = radio.closest('.cpu-test-browser-extension-main') !== null;
-    return !isInExtension;
-  });
-  // @ts-ignore
-  return filteredRadios as NodeListOf<HTMLInputElement>;
-};
-
-/**
- * 获取当前单选框状态（选中的值）
- */
-const getCurrentRadioState = (): string => {
-  const radios = getAllRadios();
-  const checkedRadios = Array.from(radios).filter(radio => radio.checked);
-  
-  if (checkedRadios.length === 0) {
-    return '';
-  }
-  
-  // 返回选中的单选框信息（name:value格式）
-  return checkedRadios.map(radio => `${radio.name}:${radio.value}`).join('|');
-};
-
-/**
- * 抓取 .record-hierarchy-container[0] 的内容
- */
-const captureRecordHierarchyContent = (): string => {
-  try {
-    const container = document.querySelector('.record-hierarchy-container');
-    if (!container) {
-      return '';
-    }
-    
-    // 获取容器内容（文本内容或HTML内容）
-    const content = container.textContent?.trim() || container.innerHTML.trim();
-    return content;
-  } catch (error) {
-    console.error('抓取 .record-hierarchy-container 内容失败:', error);
-    return '';
-  }
-};
-
-/**
- * 开始抓取过程
- */
-const startCapture = () => {
-  if (isCapturing) {
-    return;
-  }
-  
-  isCapturing = true;
-  console.log('开始抓取页面内容...');
-  
-  // 初始抓取一次
-  performCapture();
-  
-  // 设置200毫秒间隔的抓取定时器
-  captureTimer = window.setInterval(() => {
-    if (!mainParam.value.isTc) {
-      stopCapture();
-      return;
-    }
-    
-    performCapture();
-  }, 200);
-};
-
-/**
- * 执行单次抓取操作
- */
-const performCapture = () => {
-  // 检查结束条件1：mainParam.value.isTc为false
-  if (!mainParam.value.isTc) {
-    stopCapture();
-    return;
-  }
-  
-  // 检查结束条件2：单选框状态发生变化
-  const newRadioState = getCurrentRadioState();
-  if (newRadioState !== currentRadioState) {
-    console.log('单选框状态发生变化:', { old: currentRadioState, new: newRadioState });
-    currentRadioState = newRadioState;
-    // 单选框变化时也停止抓取
-    stopCapture();
-    return;
-  }
-  
-  // 抓取内容
-  const content = captureRecordHierarchyContent();
-  
-  // 检查结束条件3：抓取到了内容
-  if (content && content !== lastCapturedContent) {
-    console.log('抓取到新内容:', content);
-    stopCapture();
-    // 从当前url 中提取 cycle 参数
-    const urlParams = new URLSearchParams(window.location.search);
-    const cycle = urlParams.get('cycle');
-    hostList.value = []
-
-    getAvailableList({
-      tc_id: content,
-      cycle_name: cycle,
-      user_name: userInfo.value.userName,
-      page_size: 20,
-      last_id: '',
-    }).then(res => {
-      // @ts-ignore
-      const hosts = res.data.hosts
-      if(hosts && hosts.length > 0){
-        hostList.value = hosts
-      }
-    })
-
-    return;
-  }
-  
-  // 更新最后抓取的内容
-  lastCapturedContent = content;
-};
-
-/**
- * 停止抓取过程
- */
-const stopCapture = () => {
-  if (!isCapturing) {
-    return;
-  }
-  
-  isCapturing = false;
-  
-  if (captureTimer) {
-    clearInterval(captureTimer);
-    captureTimer = null;
-  }
-  
-  console.log('停止抓取页面内容');
-  
-  // 重置状态
-  lastCapturedContent = '';
-  currentRadioState = '';
-};
-
-/**
- * 初始化页面变化监听
- */
-const initPageObserver = () => {
-  if (pageObserver) {
-    pageObserver.disconnect();
-  }
-  
-  pageObserver = new MutationObserver((mutations) => {
-    // 检查是否有单选框相关的DOM变化
-    const hasRadioChanges = mutations.some(mutation => {
-      if (mutation.type === 'attributes' && mutation.target instanceof HTMLInputElement) {
-        return mutation.target.type === 'radio' && mutation.attributeName === 'checked';
-      }
-      
-      if (mutation.type === 'childList') {
-        // 检查新增或移除的节点中是否有单选框
-        const addedRadios = Array.from(mutation.addedNodes).some(node => 
-          node instanceof HTMLInputElement && node.type === 'radio'
-        );
-        const removedRadios = Array.from(mutation.removedNodes).some(node => 
-          node instanceof HTMLInputElement && node.type === 'radio'
-        );
-        return addedRadios || removedRadios;
-      }
-      
-      return false;
-    });
-    
-    if (hasRadioChanges && mainParam.value.isTc && !isCapturing) {
-      // 单选框发生变化且处于TC模式，开始抓取
-      startCapture();
-    }
-  });
-  
-  // 开始观察整个文档的变化
-  pageObserver.observe(document, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['checked']
-  });
-};
-
-/**
- * 清理页面监听器
- */
-const cleanupPageObserver = () => {
-  if (pageObserver) {
-    pageObserver.disconnect();
-    pageObserver = null;
-  }
-  
-  stopCapture();
-};
-
-// 监听mainParam.isTc的变化
-watch(() => mainParam.value.isTc, (newValue, oldValue) => {
-  if (newValue && !oldValue) {
-    // isTc从false变为true，初始化监听
-    initPageObserver();
-    
-    // 获取当前单选框状态
-    currentRadioState = getCurrentRadioState();
-    
-    // 如果已经有选中的单选框，开始抓取
-    if (currentRadioState) {
-      startCapture();
-    }
-  } else if (!newValue && oldValue) {
-    // isTc从true变为false，清理监听
-    cleanupPageObserver();
-  }
-});
-
-// 组件挂载时，如果isTc为true，初始化监听
-onMounted(() => {
-  if (mainParam.value.isTc) {
-    initPageObserver();
-    currentRadioState = getCurrentRadioState();
-    
-    if (currentRadioState) {
-      startCapture();
-    }
-  }
-});
-
-// 组件卸载时清理监听器
-onUnmounted(() => {
-  cleanupPageObserver();
-});
 
 const mainElement = ref<HTMLElement | null>(null)
 const isDragging = ref(false)
@@ -431,29 +207,28 @@ const handleMouseMove = (e: MouseEvent) => {
 const checkShowListPosition = () => {
   if (!mainElement.value) return
   
-  const rect = mainElement.value.getBoundingClientRect()
-  const windowHeight = window.innerHeight
+  // const rect = mainElement.value.getBoundingClientRect()
+  // const windowHeight = window.innerHeight
   // 计算距离底部的距离
-  const distanceToBottom = windowHeight - rect.bottom
+  // const distanceToBottom = windowHeight - rect.bottom
   
   // 如果距离底部不足20vh，则显示在上方
-  showListAbove.value = distanceToBottom < 20 * window.innerHeight / 100
+  // showListAbove.value = distanceToBottom < 20 * window.innerHeight / 100
 }
 
 // 拖拽结束
 const handleMouseUp = () => {
   isDragging.value = false
-
   // 移除事件监听器
   document.removeEventListener('mousemove', handleMouseMove)
   document.removeEventListener('mouseup', handleMouseUp)
 
   setTimeout(() => {
     snapToEdge()
-    // 检查列表应该显示的位置
-    checkShowListPosition()
     isMove.value = false
   }, 50)
+    // 检查列表应该显示的位置
+    checkShowListPosition()
 }
 
 // 吸附到边缘逻辑
@@ -477,7 +252,7 @@ const snapToEdge = () => {
   // 计算最大允许的top值（确保元素不超出窗口底部）
   const maxTop = Math.max(0, windowHeight - elementHeight)
   // 确保top值在合理范围内
-  const clampedY = Math.max(0, Math.min(currentY, maxTop))
+  const clampedY = Math.min(windowHeight * 0.72, Math.min(currentY, maxTop))
 
   // 计算当前位置信息
   const position: MainPosition = {
@@ -515,12 +290,25 @@ const snapToEdge = () => {
     emitEvent('dragEnd', new Event('dragEnd'), position)
   }else{
     emitEvent('click', new Event('click'))
+
   }
 
 }
 
+
+const showOfTimeTaskId = ref()
+const showOfTime = (time: number) => {
+  clearTimeout(showOfTimeTaskId.value)
+  isMouseEnter.value = true
+  showOfTimeTaskId.value = setTimeout(() => {
+    isMouseEnter.value = false
+  }, time)
+}
+
+
 // 鼠标移入
 const handleMouseEnter = () => {
+  clearTimeout(showOfTimeTaskId.value)
   if(mainParam.value.appear === 'focus'){
     isMouseEnter.value = true
   }
@@ -528,6 +316,7 @@ const handleMouseEnter = () => {
 
 // 鼠标移出
 const handleMouseLeave = () => {
+  clearTimeout(showOfTimeTaskId.value)
   if(mainParam.value.appear === 'focus'){
     isMouseEnter.value = false
   }
@@ -542,6 +331,140 @@ const emitEvent = (name: keyof CallbackEntity, event: Event, position?: MainPosi
   }
 }
 
+const listReqInfo = {
+  next: true,
+  params: {
+    tc_id: '',
+    cycle_name: '',
+    email: '',
+    user_name: '',
+    page_size: 50,
+    last_id: ''
+  }
+}
+
+
+const hostListLoad = () => {
+    // 初始化失败时不尝试加载列表
+  if(!userInfo.value.access_token || !listReqInfo.next){
+    return
+  }
+
+  pageLoading()
+  // 设为加载中
+  if(tcId.value){
+    // 加载 host 列表
+    if(hostList.value.length > 0 && listReqInfo.next){
+      // 证明需要加载下一页
+      listReqInfo.params.last_id = hostList.value[hostList.value.length - 1].id
+    }
+
+    // @ts-ignore
+    getAvailableList(listReqInfo.params).then((res) => {
+      console.log('host 列表', res)
+      pageSearch(`TC_ID: ${tcId.value}`)
+      showList.value = true
+      // @ts-ignore
+      hostList.value = [...hostList.value, ...res.data.hosts]
+      
+      // @ts-ignore
+      if(hostList.value.length >= res.data.total){
+        listReqInfo.next = false
+      }
+    }).catch(err => {
+      pageClose('加载失败')
+    })
+
+  } else if(hostList.value.length == 0){
+    // 加载可恢复列表
+    getRetryList({user_id: userInfo.value.user.full_name}).then(res => {
+      console.log('host 可恢复列表', res)
+      if(tcId.value){
+        return
+      }
+      // @ts-ignore
+      const hosts = res.data.hosts
+      if(hosts && hosts.length > 0){
+        hostList.value = hosts
+        pageWarning('检测到您有待恢复的连接')
+        showOfTime(5000)
+        showList.value = true
+      } else {
+        // 停止加载中状态
+        pageNone()
+        showList.value = false
+      }
+    }).catch(err => {
+      if(tcId.value){
+        return
+      }
+      pageClose('加载失败')
+    })
+  }
+}
+
+
+// 加载host列表
+const hostListReload = () => {
+  // 初始化失败时不尝试加载列表
+  if(!userInfo.value.access_token){
+    return
+  }
+
+  listReqInfo.next = true
+  if(tcId.value){
+    // 加载 host 列表
+    const urlParams = new URLSearchParams(window.location.search);
+    const cycle = urlParams.get('cycle');
+    listReqInfo.params = {
+      tc_id: tcId.value,
+      cycle_name: cycle || '',
+      email: userInfo.value.user.email,
+      user_name: userInfo.value.user.full_name,
+      page_size: 50,
+      last_id: ''
+    }
+
+  }
+  hostList.value = []
+  hostListLoad()
+}
+
+const pageSearch = (text?: string) => {
+  setPageState('blue', 'search', text, 'focus')
+}
+
+const pageWarning = (text?: string) => {
+  setPageState('blue', 'warning', text, 'focus')
+}
+
+const pageNone = (text?: string) => {
+  setPageState('blue', 'none', text, 'focus')
+}
+
+const pageClose = (text: string) => {
+  setPageState('warning', 'close', text, 'focus')
+  showList.value = false
+}
+
+const pageLoading = () => {
+  setPageState('blue', 'loading', '加载中', 'not-appear')
+  showList.value = false
+}
+
+const setPageState = (
+  background: 'blue' | 'warning' = 'blue', 
+  icon: 'none' | 'loading' | 'close' | 'search' | 'warning' = 'none', 
+  text = '', 
+  appear: 'focus' | 'not-appear' | 'appear' = 'focus', 
+  hostText = 'HOST'
+) => {
+  mainParam.value.background = background
+  mainParam.value.icon = icon
+  mainParam.value.text = text
+  mainParam.value.appear = appear
+  mainParam.value.hostText = hostText
+}
 
 // 组件挂载后初始化
 onMounted(() => {
@@ -553,43 +476,51 @@ onMounted(() => {
   // 获取用户信息并鉴权
   getUserInfo().then(res => {
     // @ts-ignore
-    const data = res.data
-    const personal = data.personal[0]
-    userInfo.value = {
-      userId: data.user,
-      userName: personal.full_name,
-    }
-
-    // TODO 缺少userId 鉴权逻辑
-    
-    // 获取可恢复的主机列表
-    getRetryList({user_id: userInfo.value.userId}).then(res => {
-      console.log('host 可恢复列表', res)
+    userAuth(res.original_user).then(res => {
+      console.log('用户鉴权', res)
       // @ts-ignore
-      const hosts = res.data.hosts
-      if(hosts && hosts.length > 0){
-        hostList.value = hosts
-        mainParam.value.background = 'blue'
-        mainParam.value.icon = 'warning'
-        mainParam.value.text = '检测到您有待恢复的连接'
-      } else {
-        // 停止加载中状态
-        mainParam.value.icon = 'none'
-      }
+      userInfo.value = res
+      // 获取host列表
+      hostListReload()
+    }).catch(err => {
+      pageClose('初始化失败')
     })
     console.log(res)
   }).catch(err => {
-      mainParam.value.background = 'warning'
-      mainParam.value.icon = 'close'
-      mainParam.value.text = '初始化失败'
+      pageClose('初始化失败')
   })
-
-
-
-
-
-
 })
+
+// 连接成功上报
+const connectHost = (hostRecId: string) => {
+  if(!hostRecId){
+    
+  }
+  
+    const urlParams = new URLSearchParams(window.location.search);
+    const cycle = urlParams.get('cycle');
+    const params = {
+      user_id: userInfo.value.user.full_name,
+      tc_id: tcId.value,
+      cycle_name: cycle,
+      user_name: userInfo.value.user.full_name,
+      host_id: hostRecId,
+      connection_status: "success",
+      connection_time: new Date().toLocaleString(),
+    }
+    reportConnect(params).then(res => {
+      console.log('连接成功上报', res)
+    }).catch(err => {
+      console.log('连接成功上报失败', err)
+    }).finally(() => {
+      pageSearch(`TC_ID: ${tcId.value}`)
+      isMouseEnter.value = false
+      if(hostList.value.length > 0){
+        showList.value = true
+      }
+    })
+}
+
 
 // 组件卸载时清理事件监听
 onUnmounted(() => {
@@ -648,7 +579,14 @@ const mainConClass = computed(() => {
     @mouseleave="handleMouseLeave"
   >
     <!-- 根据条件动态显示host-list的位置 -->
-    <host-list :host-list="hostList" :is-tc="mainParam.isTc" v-if="showListAbove && !isMove && showList"></host-list>
+    <host-list 
+    :host-list="hostList"
+    :is-tc="!!tcId"
+    :is-show="isMouseEnter && !isMove && showList"
+    v-show="showListAbove"
+    @connect="connectHost"
+    @loading="pageLoading"
+    ></host-list>
     
     <div 
     class="cpu-test-browser-extension-main-content" 
@@ -656,7 +594,7 @@ const mainConClass = computed(() => {
     >
       <div class="main-content-icon">
         <div class="icon main-content-icon-close" v-if="mainParam.icon === 'close'">
-          ×
+          <span>×</span>
         </div>
         <div class="icon main-content-icon-warning" v-else-if="mainParam.icon === 'warning'">
           ¡
@@ -677,11 +615,22 @@ const mainConClass = computed(() => {
     </div>
     
     <!-- 默认情况下显示在下方 -->
-    <host-list :host-list="hostList" :is-tc="mainParam.isTc" v-if="!showListAbove && !isMove && showList"></host-list>
+     
+    <host-list 
+    :host-list="hostList" 
+    :is-tc="!!tcId" 
+    :is-show="isMouseEnter && !isMove && showList"
+    v-show="!showListAbove"
+    :user-id="userInfo.user.full_name"
+    @connect="connectHost"
+    @scrollToBottom="hostListLoad"
+    @loading="pageLoading"
+    ></host-list>
   </div>
 </template>
 
 <style scoped lang="less">
+
 .cpu-test-browser-extension-main {
   position: fixed;
   top: 50%; /* 初始纵向位置 */
@@ -694,23 +643,27 @@ const mainConClass = computed(() => {
   /* 根据列表位置调整padding */
   padding: v-bind('showListAbove ? "0.5vh 0.5vh 0 0.5vh" : "0.5vh 0 0.5vh 0.5vh"');
   border-radius: 2.25vh 0 0 2.25vh;
+  /* 添加阴影效果 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.08);
 
   /* 添加过渡动画使吸附更平滑 */
-  // transition: left 0.5s ease, right 0.5s ease;
+  // transition: transform 3s ease, opacity 3s ease;
 
   &:active {
     cursor: grabbing;
   }
 
   .cpu-test-browser-extension-main-content {
-    display: flex;
-    align-items: center;
+    display: flex !important;
+    align-items: center !important;
     height: 4vh;
     background-color: #00B0F0;
     border-radius: 2vh 0 0 2vh;
     font-size: 1.4vh;
 
     .main-content-icon{
+      display: flex;
+      align-items: center;
       .main-content-icon-host{
         padding: 0.5vh;
       }
@@ -726,9 +679,11 @@ const mainConClass = computed(() => {
       }
 
       .main-content-icon-close{
+        display: flex;
+        justify-content: center;
+        align-items: center;
         font-size: 3vh;
-        text-align: center;
-        line-height: 2vh;
+        margin-bottom: 0.2vh;
       }
 
       .main-content-icon-warning{
@@ -772,6 +727,7 @@ const mainConClass = computed(() => {
     .main-mouse-enter-hide{
       max-width: 0;
       padding: 0;
+      // animation: widthChange 2s infinite alternate;
     }
   }
   

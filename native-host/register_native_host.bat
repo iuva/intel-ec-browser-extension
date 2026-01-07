@@ -44,18 +44,7 @@ echo [SUCCESS] Required files verified
 echo Updating configuration file paths...
 
 :: Create temporary configuration file
-set "TEMP_JSON=%TEMP%\realvnc_temp.json"
-(
-    echo {
-    echo     "name": "com.realvnc.vncviewer",
-    echo     "description": "RealVNC Viewer Launcher for Browser Extension",
-    echo     "path": "%SCRIPT_DIR%\\realvnc_launcher.bat",
-    echo     "type": "stdio",
-    echo     "allowed_origins": [
-    echo         "chrome-extension://*"
-    echo     ]
-    echo }
-) > "%TEMP_JSON%"
+
 
 echo [SUCCESS] Configuration file paths updated
 
@@ -125,11 +114,6 @@ echo.
 echo Note: Please ensure Python 3.7+ and RealVNC Viewer are installed
 echo.
 
-:: Clean up temporary files
-if exist "%TEMP_JSON%" del "%TEMP_JSON%"
-
-pause
-exit /b 0
 
 :error_cleanup
 echo.
@@ -139,6 +123,5 @@ echo 1. Administrator privileges
 echo 2. Registry permissions
 echo 3. File paths
 echo.
-if exist "%TEMP_JSON%" del "%TEMP_JSON%"
 pause
 exit /b 1

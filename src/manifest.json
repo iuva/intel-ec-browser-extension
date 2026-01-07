@@ -1,6 +1,7 @@
 {
   "{{chrome}}.manifest_version": 3,
   "{{firefox}}.manifest_version": 2,
+  "{{edge}}.manifest_version": 3,
   "icons": {
     "16": "icon/16.png",
     "32": "icon/32.png",
@@ -14,9 +15,13 @@
   "{{firefox}}.browser_action": {
     "default_popup": "src/popup.html"
   },
+  "{{edge}}.action": {
+    "default_popup": "src/popup.html"
+  },
   "background": {
     "{{chrome}}.service_worker": "src/background.ts",
-    "{{firefox}}.scripts": ["src/background.ts"]
+    "{{firefox}}.scripts": ["src/background.ts"],
+    "{{edge}}.service_worker": "src/background.ts"
   },
   "content_scripts": [
     {
@@ -26,13 +31,11 @@
     }
   ],
   "permissions": [
-    "https://hsdes.intel.com/*",
-    "https://hsdes-pre.intel.com/*",
     "activeTab",
     "storage",
     "nativeMessaging"
   ],
-  "host_permissions": [
+  "host_permissions": [  
     "https://hsdes.intel.com/*",
     "https://hsdes-pre.intel.com/*"
   ]

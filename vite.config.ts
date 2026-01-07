@@ -19,6 +19,11 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '')
 
     console.log('环境变量：：：：', env)
+    console.log('目标浏览器：', env.TARGET || 'chrome')
+
+    // 验证浏览器参数，默认为chrome
+    const validBrowsers = ['chrome', 'firefox', 'edge']
+    const targetBrowser = validBrowsers.includes(env.TARGET) ? env.TARGET : 'chrome'
 
     return {
         resolve: {
@@ -53,7 +58,7 @@ export default defineConfig(({ mode }) => {
             webExtension({
                 manifest: generateManifest,
                 watchFilePaths: ["package.json", "manifest.json"],
-                browser: env.TARGET
+                browser: targetBrowser
             }),
         ],
     }

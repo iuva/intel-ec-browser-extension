@@ -5,6 +5,7 @@
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
 import { warning } from '/@/utils/notification'
+import browser from "webextension-polyfill";
 
 // 定义请求配置接口
 export interface RequestConfig extends RequestInit {
@@ -162,7 +163,7 @@ export const proxyFetch = (url: string, options: any = {}) => {
 
   return new Promise((resolve, reject) => {
         // @ts-ignore 在content script中使用chrome.runtime，在background script中使用browser.runtime
-        const runtime = typeof browser !== 'undefined' ? browser.runtime : chrome.runtime;
+        const runtime = browser.runtime
 
         const requestUrl = buildURL(url, defaultConfig.baseURL, options.params);
         
@@ -176,7 +177,7 @@ export const proxyFetch = (url: string, options: any = {}) => {
             credentials: options.credentials || 'omit',
             body: options.body // 添加body参数
         }).then((res: Record<string, any>) => {
-          if(res.success && res.data !== undefined && res.data.code == 200){
+          if(res.success && res.data !== undefined){
             resolve(res.data)
           } else {
             reject(res.error)

@@ -82,7 +82,6 @@ async function launchRealVNC(connectionFile = '', svnContent = '') {
   return new Promise((resolve, reject) => {
     const port = browser.runtime.connectNative(NATIVE_HOST_NAME);
     
-    console.log('收到vncConnect请求:', port);
     port.onMessage.addListener((response) => {
       if (response.success) {
         resolve(response);
@@ -98,6 +97,7 @@ async function launchRealVNC(connectionFile = '', svnContent = '') {
       }
     });
     
+    console.log('收到vncConnect请求:', connectionFile, svnContent);
     // Send launch command to native host
     port.postMessage({
       action: 'launch',

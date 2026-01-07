@@ -6,8 +6,13 @@
   "scripts": {
     "dev:chrome": "vite --mode chrome",
     "dev:firefox": "vite --mode firefox",
-    "build:chrome": "cross-env vite build --mode chrome",
-    "build:firefox": "cross-env vite build --mode firefox"
+    "dev:edge": "vite --mode edge",
+    "build:chrome": "node scripts/build-with-python.cjs chrome",
+    "build:firefox": "node scripts/build-with-python.cjs firefox", 
+    "build:edge": "node scripts/build-with-python.cjs edge",
+    "build:dist:chrome": "cross-env vite build --mode chrome",
+    "build:dist:firefox": "cross-env vite build --mode firefox",
+    "build:dist:edge": "cross-env vite build --mode edge"
   },
   "dependencies": {
     "vue": "^3.3"

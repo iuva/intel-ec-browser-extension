@@ -37,9 +37,9 @@ class RealVNCLauncher:
         if self.system == "Windows":
             # Windows 的常见安装路径
             paths = [
-                r"C:\Program Files\RealVNC\VNC Viewer\vncviewer.exe",
-                r"C:\Program Files (x86)\RealVNC\VNC Viewer\vncviewer.exe",
-                r"C:\Users\{}\AppData\Local\RealVNC\VNC Viewer\vncviewer.exe".format(os.getenv('USERNAME', ''))
+                r"C:\\Program Files\\RealVNC\\VNC Viewer\\vncviewer.exe",
+                r"C:\\Program Files (x86)\\RealVNC\\VNC Viewer\\vncviewer.exe",
+                r"C:\\Users\\{}\\AppData\\Local\\RealVNC\\VNC Viewer\\vncviewer.exe".format(os.getenv('USERNAME', ''))
             ]
         elif self.system == "Darwin":  # macOS
             paths = [

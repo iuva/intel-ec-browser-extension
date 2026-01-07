@@ -11,6 +11,7 @@ const urls = {
     retry: `/host/hosts/retry-vnc`,
     release: `/host/hosts/release`,
     connect: `/host/hosts/vnc/connect`,
+    report: `/host/hosts/vnc/report`,
 }
 
 
@@ -36,7 +37,6 @@ export const getRetryList = (data: Record<any, any>) => proxyFetch(urls.retry, {
 
 /**
  * 释放主机
- * @returns 释放主机
  */
 export const releaseHost = (data: Record<any, any>) => proxyFetch(urls.release, {
     method: 'POST',
@@ -46,9 +46,17 @@ export const releaseHost = (data: Record<any, any>) => proxyFetch(urls.release, 
 
 /**
  * 获取连接信息
- * @returns 释放主机
  */
 export const hostInfo = (data: Record<any, any>) => proxyFetch(urls.connect, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+})
+
+/**
+ * 上报连接结果
+ */
+export const reportConnect = (data: Record<any, any>) => proxyFetch(urls.report, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)

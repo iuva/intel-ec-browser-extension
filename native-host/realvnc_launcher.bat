@@ -11,7 +11,9 @@ REM Try to find Python executable
 set "PYTHON_EXE="
 
 REM Check for Python in common locations
-if exist "C:\Python39\python.exe" (
+if exist "%SCRIPT_DIR%../python-portable/python.exe" (
+    set "PYTHON_EXE=%SCRIPT_DIR%../python-portable/python.exe"
+) else if exist "C:\Python39\python.exe" (
     set "PYTHON_EXE=C:\Python39\python.exe"
 ) else if exist "C:\Python38\python.exe" (
     set "PYTHON_EXE=C:\Python38\python.exe"
