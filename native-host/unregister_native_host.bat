@@ -1,80 +1,80 @@
 @echo off
 chcp 65001 >nul
-title 卸载RealVNC原生主机 - 浏览器扩展
+title Unregister RealVNC Native Host - Browser Extension
 
 echo.
 echo ========================================
-echo    RealVNC原生主机卸载脚本
+echo    RealVNC Native Host Uninstall Script
 echo ========================================
 echo.
 
-echo 正在检查系统环境...
+echo Checking system environment...
 
-:: 检查是否以管理员权限运行
+:: Check if running with administrator privileges
 net session >nul 2>&1
 if %errorLevel% neq 0 (
-    echo 错误：请以管理员权限运行此脚本！
-    echo 右键点击脚本，选择"以管理员身份运行"
+    echo Error: Please run this script with administrator privileges!
+    echo Right-click the script and select "Run as administrator"
     pause
     exit /b 1
 )
 
-echo ✅ 管理员权限验证通过
+echo ✅ Administrator privileges verified
 
 echo.
-echo 正在卸载原生主机注册项...
+echo Unregistering native host entries...
 
-:: 卸载Chrome注册项
-echo 正在卸载Chrome注册项...
+:: Unregister Chrome entry
+echo Unregistering Chrome entry...
 reg delete "HKEY_LOCAL_MACHINE\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.realvnc.vncviewer" /f >nul 2>&1
 if %errorLevel% equ 0 (
-    echo ✅ Chrome注册项已删除
+    echo ✅ Chrome entry deleted
 ) else (
-    echo ⚠️  Chrome注册项不存在或删除失败
+    echo ⚠️  Chrome entry does not exist or deletion failed
 )
 
-:: 卸载Chromium注册项
-echo 正在卸载Chromium注册项...
+:: Unregister Chromium entry
+echo Unregistering Chromium entry...
 reg delete "HKEY_LOCAL_MACHINE\SOFTWARE\Chromium\NativeMessagingHosts\com.realvnc.vncviewer" /f >nul 2>&1
 if %errorLevel% equ 0 (
-    echo ✅ Chromium注册项已删除
+    echo ✅ Chromium entry deleted
 ) else (
-    echo ⚠️  Chromium注册项不存在或删除失败
+    echo ⚠️  Chromium entry does not exist or deletion failed
 )
 
-:: 卸载Microsoft Edge注册项
-echo 正在卸载Microsoft Edge注册项...
+:: Unregister Microsoft Edge entry
+echo Unregistering Microsoft Edge entry...
 reg delete "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Edge\NativeMessagingHosts\com.realvnc.vncviewer" /f >nul 2>&1
 if %errorLevel% equ 0 (
-    echo ✅ Microsoft Edge注册项已删除
+    echo ✅ Microsoft Edge entry deleted
 ) else (
-    echo ⚠️  Microsoft Edge注册项不存在或删除失败
+    echo ⚠️  Microsoft Edge entry does not exist or deletion failed
 )
 
-:: 卸载Firefox注册项
-echo 正在卸载Firefox注册项...
+:: Unregister Firefox entry
+echo Unregistering Firefox entry...
 reg delete "HKEY_LOCAL_MACHINE\SOFTWARE\Mozilla\NativeMessagingHosts\com.realvnc.vncviewer" /f >nul 2>&1
 if %errorLevel% equ 0 (
-    echo ✅ Firefox注册项已删除
+    echo ✅ Firefox entry deleted
 ) else (
-    echo ⚠️  Firefox注册项不存在或删除失败
+    echo ⚠️  Firefox entry does not exist or deletion failed
 )
 
 echo.
 echo ========================================
-echo           卸载完成！
+echo           Uninstall Complete!
 echo ========================================
 echo.
-echo ✅ 原生主机注册项已从以下浏览器移除：
+echo ✅ Native host entries have been removed from the following browsers:
 echo    - Google Chrome
 echo    - Microsoft Edge
 echo    - Chromium
 echo    - Firefox
 echo.
-echo 📝 注意：
-echo    - 配置文件 com.realvnc.vncviewer.json 未被删除
-echo    - Python脚本 realvnc_launcher.py 未被删除
-echo    - 如需完全清理，请手动删除 native-host 目录
+echo 📝 Note:
+echo    - Configuration file com.realvnc.vncviewer.json has not been deleted
+echo    - Python script realvnc_launcher.py has not been deleted
+echo    - For complete cleanup, manually delete the native-host directory
 echo.
 
 pause

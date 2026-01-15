@@ -1,8 +1,8 @@
-// 主视图实体定义
+// Main view entity definition
 
 
 /**
- * 组件位置信息
+ * Component position information
  */
 export interface MainParam {
   background?: 'blue' | 'warning',
@@ -16,7 +16,7 @@ export interface MainParam {
 
 
 /**
- * 组件位置信息
+ * Component position information
  */
 export interface MainPosition {
   left: string
@@ -27,7 +27,7 @@ export interface MainPosition {
 }
 
 /**
- * 组件回调函数实体
+ * Component callback function entity
  */
 export interface CallbackEntity {
   focus?: (event?: Event) => void

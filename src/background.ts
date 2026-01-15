@@ -7,10 +7,10 @@ browser.runtime.onInstalled.addListener((details) => {
   console.log("Extension installed:", details);
 });
 
-// 处理跨域请求
+// Handle cross-origin requests
 browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'apiRequest') {
-    console.log('收到跨域请求:', request.url, request.method, request.body, request.credentials);
+    console.log('Received cross-origin request:', request.url, request.method, request.body, request.credentials);
     
     const fetchOptions: any = {
       method: request.method || 'GET',
@@ -18,56 +18,56 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
       credentials: request.credentials
     };
     
-    // 如果是POST/PUT/PATCH请求且有body数据，则添加body
+    // If it's a POST/PUT/PATCH request and has body data, add body
     if (request.body && ['POST', 'PUT', 'PATCH'].includes(request.method)) {
       fetchOptions.body = request.body;
     }
     
-    console.log('发送fetch请求:', request.url, fetchOptions);
+    console.log('Sending fetch request:', request.url, fetchOptions);
     
     fetch(request.url, fetchOptions)
     .then(response => {
-      console.log('收到响应状态:', response.status, response.statusText);
+      console.log('Received response status:', response.status, response.statusText);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       return response.json();
     })
     .then(data => {
-      console.log('请求成功:', data);
+      console.log('Request successful:', data);
       // @ts-ignore
       sendResponse({ success: true, data });
     })
     .catch(error => {
-      console.error('请求失败:', error);
+      console.error('Request failed:', error);
       // @ts-ignore
       sendResponse({ success: false, error: error.message });
     });
     
-    return true; // 保持消息通道开放，用于异步响应
+    return true; // Keep message channel open for async response
   }else if(request.type === 'vncConnect'){
     /**
-     * 接收参数：
-     * @param {Object} request - 包含hostInfo的请求对象
-     * @param {Object} request.hostInfo - VNC连接信息
-     * @param {string} request.hostInfo.host - VNC服务器主机名或IP地址
-     * @param {number} request.hostInfo.port - VNC服务器端口号
-     * @param {string} request.hostInfo.username - VNC用户名
-     * @param {string} request.hostInfo.password - VNC密码
-     * @param {string} request.hostInfo.displayName - 连接显示名称
-     * @param {string} request.hostInfo.encryption - 加密类型（如TLS）
-     * @param {string} request.hostInfo.quality - 图像质量（如High）
-     * @param {string} request.hostInfo.scaling - 缩放模式（如Auto）
+     * Parameters received:
+     * @param {Object} request - Request object containing hostInfo
+     * @param {Object} request.hostInfo - VNC connection information
+     * @param {string} request.hostInfo.host - VNC server hostname or IP address
+     * @param {number} request.hostInfo.port - VNC server port number
+     * @param {string} request.hostInfo.username - VNC username
+     * @param {string} request.hostInfo.password - VNC password
+     * @param {string} request.hostInfo.displayName - Connection display name
+     * @param {string} request.hostInfo.encryption - Encryption type (e.g., TLS)
+     * @param {string} request.hostInfo.quality - Image quality (e.g., High)
+     * @param {string} request.hostInfo.scaling - Scaling mode (e.g., Auto)
      */
 
-    console.log('收到vncConnect请求:', request);
+    console.log('Received vncConnect request:', request);
     
-    // 生成SVN文件
+    // Generate SVN file
     const svnContent = generateSVNFile(request.hostInfo || {});
-    // 使用临时目录生成SVN文件，避免硬编码路径
+    // Use temporary directory to generate SVN file, avoid hardcoded paths
     const svnFilePath = generateTempSVNFilePath();
     
-    // 调用RealVNC
+    // Call RealVNC
     launchRealVNC(svnFilePath, svnContent)
     // @ts-ignore
       .then(result => { sendResponse({ success: true, result }) } )
@@ -97,7 +97,7 @@ async function launchRealVNC(connectionFile = '', svnContent = '') {
       }
     });
     
-    console.log('收到vncConnect请求:', connectionFile, svnContent);
+    console.log('Received vncConnect request:', connectionFile, svnContent);
     // Send launch command to native host
     port.postMessage({
       action: 'launch',
@@ -107,7 +107,7 @@ async function launchRealVNC(connectionFile = '', svnContent = '') {
   });
 }
 
-// 生成SVN文件内容
+// Generate SVN file content
 function generateSVNFile(hostInfo: any): string {
   const {
     host = 'localhost',
@@ -143,14 +143,14 @@ allow_unsupported_encodings=false`;
   return svnContent;
 }
 
-// 生成临时SVN文件路径
+// Generate temporary SVN file path
 function generateTempSVNFilePath(): string {
-  // 使用时间戳和随机数确保文件唯一性
+  // Use timestamp and random number to ensure file uniqueness
   const timestamp = Date.now();
   const random = Math.floor(Math.random() * 10000);
   const filename = `vnc_connection_${timestamp}_${random}.svn`;
   
-  // 最佳方案：使用相对路径，让Python脚本处理路径解析
-  // Python脚本会在其所在目录创建temp文件夹
+  // Best solution: use relative path, let Python script handle path resolution
+  // Python script will create temp folder in its own directory
   return `temp\\${filename}`;
 }

@@ -1,0 +1,13 @@
+# Chrome Browser Extension Installer Dependencies
+
+# GUI Framework
+tkinter  # Python standard library, usually included
+
+# Packaging Tool
+pyinstaller>=5.0
+
+# Other Utility Libraries
+pathlib2; python_version < "3.4"  # pathlib support for older Python versions
+
+# Image Processing (for precise scaling)
+pillow>=8.0

@@ -1,29 +1,29 @@
 /**
- * 函数式弹窗工具类
- * 提供纯函数调用方式，避免组件引入带来的事件冲突
+ * Functional modal utility class
+ * Provides pure function call method to avoid event conflicts from component imports
  */
 
 interface ModalOptions {
-  // 基础属性
+  // Basic properties
   title?: string
   msg?: string
   
-  // 确认按钮相关
+  // Confirm button related
   showConfirm?: boolean
   confirmText?: string
   onConfirm?: () => void
   
-  // 取消按钮相关
+  // Cancel button related
   showCancel?: boolean
   cancelText?: string
   onCancel?: () => void
   
-  // 蒙版相关
+  // Mask related
   maskClosable?: boolean
 }
 
 /**
- * 创建弹窗DOM元素
+ * Create modal DOM element
  */
 function createModalElement(options: ModalOptions): HTMLDivElement {
   const modalId = `modal-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -35,7 +35,7 @@ function createModalElement(options: ModalOptions): HTMLDivElement {
     modalOverlay.classList.add('cpu-test-modal-overlay-clickable')
   }
   
-  // 设置样式
+  // Set styles
   modalOverlay.style.cssText = `
     position: fixed;
     top: 0;
@@ -50,7 +50,7 @@ function createModalElement(options: ModalOptions): HTMLDivElement {
     ${options.maskClosable ? 'cursor: pointer;' : ''}
   `
   
-  // 创建弹窗容器
+  // Create modal container
   const modalContainer = document.createElement('div')
   modalContainer.className = 'cpu-test-modal-container'
   modalContainer.style.cssText = `
@@ -63,7 +63,7 @@ function createModalElement(options: ModalOptions): HTMLDivElement {
     animation: cpu-test-modal-fade-in 0.3s ease;
   `
   
-  // 创建标题栏
+  // Create header section
   const header = document.createElement('div')
   header.className = 'cpu-test-modal-header'
   header.style.cssText = `
@@ -75,7 +75,7 @@ function createModalElement(options: ModalOptions): HTMLDivElement {
   
   const title = document.createElement('div')
   title.className = 'cpu-test-modal-title'
-  title.textContent = options.title || '提示'
+  title.textContent = options.title || 'Prompt'
   title.style.cssText = `
     font-size: 1.8vh;
     font-weight: 600;
@@ -101,7 +101,7 @@ function createModalElement(options: ModalOptions): HTMLDivElement {
     transition: all 0.2s ease;
   `
   
-  // 创建内容区域
+  // Create content section
   const content = document.createElement('div')
   content.className = 'cpu-test-modal-content'
   content.style.cssText = `
@@ -123,7 +123,7 @@ function createModalElement(options: ModalOptions): HTMLDivElement {
     word-wrap: break-word;
   `
   
-  // 创建按钮区域
+  // Create footer section
   const footer = document.createElement('div')
   footer.className = 'cpu-test-modal-footer'
   footer.style.cssText = `
@@ -133,12 +133,12 @@ function createModalElement(options: ModalOptions): HTMLDivElement {
     padding: 1.5vh 2vh 2vh 2vh;
   `
   
-  // 创建取消按钮
+  // Create cancel button
   let cancelBtn: HTMLButtonElement | null = null
   if (options.showCancel !== false) {
     cancelBtn = document.createElement('button')
     cancelBtn.className = 'cpu-test-modal-btn cpu-test-modal-cancel-btn'
-    cancelBtn.textContent = options.cancelText || '取消'
+    cancelBtn.textContent = options.cancelText || 'Cancel'
     cancelBtn.style.cssText = `
       padding: 0.8vh 2vh;
       border: none;
@@ -153,12 +153,12 @@ function createModalElement(options: ModalOptions): HTMLDivElement {
     `
   }
   
-  // 创建确认按钮
+  // Create confirm button
   let confirmBtn: HTMLButtonElement | null = null
   if (options.showConfirm !== false) {
     confirmBtn = document.createElement('button')
     confirmBtn.className = 'cpu-test-modal-btn cpu-test-modal-confirm-btn'
-    confirmBtn.textContent = options.confirmText || '确认'
+    confirmBtn.textContent = options.confirmText || 'Confirm'
     confirmBtn.style.cssText = `
       padding: 0.8vh 2vh;
       border: none;
@@ -173,7 +173,7 @@ function createModalElement(options: ModalOptions): HTMLDivElement {
     `
   }
   
-  // 组装DOM结构
+  // Assemble DOM structure
   header.appendChild(title)
   header.appendChild(closeBtn)
   
@@ -192,20 +192,20 @@ function createModalElement(options: ModalOptions): HTMLDivElement {
 }
 
 /**
- * 显示弹窗
+ * Show modal
  */
 export function showModal(options: ModalOptions): Promise<boolean> {
   return new Promise((resolve) => {
     const modalElement = createModalElement(options)
     
-    // 获取按钮元素
+    // Get button elements
     const closeBtn = modalElement.querySelector('.cpu-test-modal-close-btn') as HTMLButtonElement
     const cancelBtn = modalElement.querySelector('.cpu-test-modal-cancel-btn') as HTMLButtonElement
     const confirmBtn = modalElement.querySelector('.cpu-test-modal-confirm-btn') as HTMLButtonElement
     
-    // 关闭弹窗函数
+    // Close modal function
     const closeModal = (result: boolean) => {
-      // 添加淡出动画
+      // Add fade-out animation
       modalElement.style.opacity = '0'
       modalElement.style.transform = 'scale(0.8) translateY(-2vh)'
       
@@ -217,7 +217,7 @@ export function showModal(options: ModalOptions): Promise<boolean> {
       }, 300)
     }
     
-    // 事件处理
+    // Event handling
     const handleMaskClick = (e: Event) => {
       if (options.maskClosable && e.target === modalElement) {
         if (options.onCancel) options.onCancel()
@@ -240,13 +240,13 @@ export function showModal(options: ModalOptions): Promise<boolean> {
       closeModal(true)
     }
     
-    // 绑定事件
+    // Bind events
     modalElement.addEventListener('click', handleMaskClick)
     closeBtn?.addEventListener('click', handleClose)
     cancelBtn?.addEventListener('click', handleCancel)
     confirmBtn?.addEventListener('click', handleConfirm)
     
-    // 添加CSS动画
+    // Add CSS animations
     const style = document.createElement('style')
     style.textContent = `
       @keyframes cpu-test-modal-fade-in {
@@ -289,10 +289,10 @@ export function showModal(options: ModalOptions): Promise<boolean> {
     `
     document.head.appendChild(style)
     
-    // 添加到页面
+    // Add to page
     document.body.appendChild(modalElement)
     
-    // 返回关闭函数，允许外部控制关闭
+    // Return close function to allow external control
     return {
       close: () => closeModal(false)
     }
@@ -300,30 +300,30 @@ export function showModal(options: ModalOptions): Promise<boolean> {
 }
 
 /**
- * 确认弹窗快捷方法
+ * Confirmation modal shortcut method
  */
-export function confirm(msg: string, title: string = '确认操作'): Promise<boolean> {
+export function confirm(msg: string, title: string = 'Confirm Operation'): Promise<boolean> {
   return showModal({
     title,
     msg,
     showConfirm: true,
-    confirmText: '确定',
+    confirmText: 'Confirm',
     showCancel: true,
-    cancelText: '取消',
+    cancelText: 'Cancel',
     maskClosable: false
   })
 }
 
 /**
- * 警告弹窗快捷方法
+ * Alert modal shortcut method
  */
-export function alert(msg: string, title: string = '提示'): Promise<void> {
+export function alert(msg: string, title: string = 'Prompt'): Promise<void> {
   return new Promise((resolve) => {
     showModal({
       title,
       msg,
       showConfirm: true,
-      confirmText: '确定',
+      confirmText: 'Confirm',
       showCancel: false,
       maskClosable: false,
       onConfirm: () => resolve()

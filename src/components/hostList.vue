@@ -6,14 +6,14 @@ import { notify, info, success, warning, error } from '/@/utils/notification'
 import browser from "webextension-polyfill";
 import { showModal } from '../utils/modal'
 
-// 定义列表条目接口
+// Define list item interface
 interface ListItem {
   host_id: string
   host_ip: string
   user_name: string
 }
 
-// 定义props
+// Define props
 const props = defineProps({
   hostList: {
     type: Array as () => Record<string, any>[],
@@ -34,31 +34,32 @@ const props = defineProps({
 
 })
 
-// 单选选中的索引
+// Single selection index
 const selectedIndex = ref(0)
 
-// host-list-content元素的ref
+// host-list-content element ref
 const hostListContentRef = ref<HTMLElement | null>(null)
 
-// 定义组件事件
+// Define component events
 interface Emits {
   (e: 'itemClick', item: ListItem): void
   (e: 'connect', hostRecId: string): void
   (e: 'loading'): void
-  (e: 'scrollToBottom'): void // 新增滚动到底部事件
+  (e: 'scrollToBottom'): void // New scroll to bottom event
 }
 
-// 定义props和emits
+// Define props and emits
 const emits = defineEmits<Emits>()
 
-// 处理条目点击事件
+// Handle item click event
 const handleItemClick = (item: Record<string, any>, index: number) => {
   selectedIndex.value = index
   emits('itemClick', item as ListItem)
 }
 
-// 连接到所选host
-const handleConnectClick = () => {
+// @ts-ignore Connect to selected host
+const handleConnectClick = (event) => {
+  event.stopPropagation() // 阻止事件冒泡
   emits('loading')
 
   
@@ -76,33 +77,34 @@ const handleConnectClick = () => {
           }
       }).then((res: Record<string, any>) => {
         if (res.success) {
-          success('VNC连接成功')
+          success('VNC connection successful')
           emits('connect', props.hostList[selectedIndex.value].host_rec_id)
         } else {
           emits('connect', '')
-          error('VNC连接失败', res.error)
+          error('VNC connection failed', res.error)
         }
       }).catch((err: Record<string, any>) => {
-        error('VNC连接失败', err.message)
+        error('VNC connection failed', err.message)
         emits('connect', '')
       })
   }).catch(() => {
-    error('获取 vnc 信息失败')
+    error('Failed to get VNC information')
     emits('connect', '')
   })
 }
 
-// 放弃恢复连接
-const handleAbortClick = () => {
+// @ts-ignore Abort recovery connection
+const handleAbortClick = (event) => {
+    event.stopPropagation() // 阻止事件冒泡
 
-    // 使用函数式弹窗
+    // Use functional modal
     showModal({
-      title: '操作确认',
-      msg: '确定要释放此host的连接吗？',
+      title: 'Operation Confirmation',
+      msg: 'Are you sure you want to release this host connection?',
       showConfirm: true,
-      confirmText: '确定',
+      confirmText: 'Confirm',
       showCancel: true,
-      cancelText: '取消',
+      cancelText: 'Cancel',
       maskClosable: true,
       onConfirm: () => {
         releaseHost({ user_id: props.userId,
@@ -110,24 +112,24 @@ const handleAbortClick = () => {
             props.hostList[selectedIndex.value].host_id
           ]
         }).then(() => {
-          success('已放弃恢复连接')
-          // 从列表中删除此host
+          success('Recovery connection abandoned')
+          // Remove this host from the list
           props.hostList.splice(selectedIndex.value, 1)
         }).catch(() => {
-          error('放弃恢复连接失败')
+          error('Failed to abandon recovery connection')
         })
       }
     })
 }
 
-// 监听hostList变化，重置选中索引
+// Watch hostList changes, reset selected index
 watch(() => props.hostList, (newList) => {
   if (newList.length > 0 && selectedIndex.value >= newList.length) {
     selectedIndex.value = 0
   }
 }, { immediate: true })
 
-// 滚动监听函数
+// Scroll listener function
 const handleScroll = () => {
   if (!hostListContentRef.value) return
   
@@ -136,23 +138,23 @@ const handleScroll = () => {
   const scrollHeight = element.scrollHeight
   const clientHeight = element.clientHeight
   
-  // 判断是否滚动到底部（距离底部10px以内）
+  // Check if scrolled to bottom (within 10px from bottom)
   const isBottom = scrollHeight - scrollTop - clientHeight <= 10
   
   if (isBottom) {
-    console.log('滚动条已滑动到底部')
+    console.log('Scrollbar has reached the bottom')
     emits('scrollToBottom')
   }
 }
 
-// 组件挂载时添加滚动监听
+// Add scroll listener when component mounts
 onMounted(() => {
   if (hostListContentRef.value) {
     hostListContentRef.value.addEventListener('scroll', handleScroll)
   }
 })
 
-// 组件卸载时移除滚动监听
+// Remove scroll listener when component unmounts
 onUnmounted(() => {
   if (hostListContentRef.value) {
     hostListContentRef.value.removeEventListener('scroll', handleScroll)
@@ -173,13 +175,13 @@ onUnmounted(() => {
           :class="{ 'selected': index === selectedIndex }"
           @click="handleItemClick(item, index)"
         >
-          <!-- 单选圆圈 -->
+          <!-- Radio circle -->
           <div class="radio-circle">
             <div class="radio-inner" :class="{ 'selected': index === selectedIndex }"></div>
           </div>
           
-          <!-- 用户名称 -->
-          <div class="host-list-item-label">{{ item.host_ip }}：{{ item.user_name }}</div>
+          <!-- User name -->
+          <div class="host-list-item-label">{{ item.host_ip }}: {{ item.user_name }}</div>
         </div>
       </div>
       
@@ -187,14 +189,14 @@ onUnmounted(() => {
         class="nav-button up-button" 
         @click="handleConnectClick"
       >
-        连接所选host
+        Connect Selected Host
       </button>
       <button 
         class="nav-button down-button" 
         @click="handleAbortClick"
         v-show="!isTc"
       >
-        放弃恢复连接
+        Abort Recovery Connection
       </button>
     </div>
 </template>
@@ -252,7 +254,7 @@ onUnmounted(() => {
 }
 
 .up-button {
-  background-color: #00B0F0; /* 蓝色 */
+  background-color: #00B0F0; /* Blue */
   color: white;
   
   &:not(:disabled):hover {
@@ -261,7 +263,7 @@ onUnmounted(() => {
 }
 
 .down-button {
-  background-color: #9e9e9e; /* 灰色 */
+  background-color: #9e9e9e; /* Gray */
   color: white;
   margin-bottom: 1vh;
   
@@ -280,7 +282,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 0.5vh;
   
-  /* 隐藏滚动条但保持功能 */
+  /* Hide scrollbar but keep functionality */
   &::-webkit-scrollbar {
     width: 0.5vh;
   }
@@ -371,7 +373,7 @@ onUnmounted(() => {
   font-size: 1.2vh;
   font-weight: bold;
   
-  /* 不同状态的图标样式 */
+  /* Icon styles for different statuses */
   &.host-list-item-icon-success {
     background-color: #4caf50;
     color: white;

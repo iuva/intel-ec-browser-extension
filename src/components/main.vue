@@ -7,11 +7,11 @@ import { getUserInfo, userAuth } from '/@/api/auth'
 import { getRetryList, getAvailableList, reportConnect } from '/@/api/host'
 
 /**
- * 背景颜色： 蓝色(blue)、红色(warning)
- * 组件图标：无(none)、叉(close)、叹号(warning)、查找(search)、加载中(loading)
- * 滑出状态：焦点时滑出(focus)，不滑出(not-appear)、滑出(appear)
- * 不圆角：上、下
- * 回调：点击回调、拖拽结束回调
+ * Background color: blue(blue), red(warning)
+ * Component icons: none(none), close(close), warning(warning), search(search), loading(loading)
+ * Slide-out state: slide out on focus(focus), do not slide out(not-appear), slide out(appear)
+ * No rounded corners: top, bottom
+ * Callbacks: click callback, drag end callback
  */
 const mainParam = ref<MainParam>({
   background: 'blue',
@@ -46,10 +46,10 @@ const monitorHost = ['hsdes-pre.intel.com', 'hsdes.intel.com']
 
 const tcIdEl = ref<MutationRecord | null>(null)
 
-// 监听路由变化，以修改是否处于可抓取 tc_id 的状态
+// Monitor route changes to modify whether in a state to capture tc_id
 const observeUrlChanges = () => {
   if(monitorHost.concat(location.hostname)){
-    console.log('路由变化', location)
+    console.log('Route changed', location)
     checkTcPage()
   }
 };
@@ -58,17 +58,17 @@ const checkTcPage = (): void => {
   mainParam.value.isTc = location.pathname == '/appstore/phoenix/execution'
 }
 
-// 监听浏览器前进/后退
+// Listen to browser forward/back
 window.addEventListener('popstate', observeUrlChanges);
 
-// 监听hash变化（适用于单页应用）
+// Listen to hash changes (for single page applications)
 window.addEventListener('hashchange', observeUrlChanges);
 
-// 使用MutationObserver监听DOM变化来检测SPA路由变化
+// Use MutationObserver to monitor DOM changes to detect SPA route changes
 const urlObserver = new MutationObserver((mutations) => {
-  // 检查是否有与路由相关的DOM变化
+  // Check if there are route-related DOM changes
   mutations.forEach((mutation) => {
-    // 检查URL是否发生变化
+    // Check if URL has changed
     const currentUrl = location.href;
     // @ts-ignore
     if (currentUrl !== urlObserver.lastUrl) {
@@ -133,24 +133,24 @@ const mainElement = ref<HTMLElement | null>(null)
 const isDragging = ref(false)
 const startPos = ref({ x: 0, y: 0 })
 const startTransform = ref({ x: 0, y: 0 })
-// 是否有拖拽行为
+// Whether there is drag behavior
 const isMove = ref(false)
-// 鼠标是否进入组件范围
+// Whether mouse has entered component range
 const isMouseEnter = ref(false)
-// 拖拽容忍度，在容忍度内将回调click事件
+// Drag tolerance, within tolerance will callback click event
 const dragTolerance = ref(5)
-// 当前在左还是在右
+// Currently on left or right
 const leftOrRight = ref('right')
-// 是否显示在上方（当距离底部不足20vh时）
+// Whether to display above (when distance to bottom is less than 20vh)
 const showListAbove = ref(false)
-// 是否显示host-list
+// Whether to display host-list
 const showList = ref(false)
 
-// 回调函数定义
+// Callback function definition
 const callbacks = ref<CallbackEntity>({})
 
 
-// 拖拽开始
+// Drag start
 const handleMouseDown = (e: MouseEvent) => {
   if (!mainElement.value) return
 
@@ -158,7 +158,7 @@ const handleMouseDown = (e: MouseEvent) => {
   isMove.value = false
   startPos.value = { x: e.clientX, y: e.clientY }
 
-  // 获取当前元素位置
+  // Get current element position
   const transform = getComputedStyle(mainElement.value).transform
   if (transform !== 'none') {
     const matrix = new DOMMatrix(transform)
@@ -167,15 +167,15 @@ const handleMouseDown = (e: MouseEvent) => {
     startTransform.value = { x: 0, y: 0 }
   }
 
-  // 添加全局事件监听器
+  // Add global event listeners
   document.addEventListener('mousemove', handleMouseMove)
   document.addEventListener('mouseup', handleMouseUp)
 
-  // 防止文本选择
+  // Prevent text selection
   e.preventDefault()
 }
 
-// 拖拽中
+// Dragging
 const handleMouseMove = (e: MouseEvent) => {
   if (!isDragging.value || !mainElement.value) return
 
@@ -203,23 +203,23 @@ const handleMouseMove = (e: MouseEvent) => {
   }
 }
 
-// 检查是否需要将列表显示在上方
+// Check if list needs to be displayed above
 const checkShowListPosition = () => {
   if (!mainElement.value) return
   
   // const rect = mainElement.value.getBoundingClientRect()
   // const windowHeight = window.innerHeight
-  // 计算距离底部的距离
+  // Calculate distance to bottom
   // const distanceToBottom = windowHeight - rect.bottom
   
-  // 如果距离底部不足20vh，则显示在上方
+  // If distance to bottom is less than 20vh, display above
   // showListAbove.value = distanceToBottom < 20 * window.innerHeight / 100
 }
 
-// 拖拽结束
+// Drag end
 const handleMouseUp = () => {
   isDragging.value = false
-  // 移除事件监听器
+  // Remove event listeners
   document.removeEventListener('mousemove', handleMouseMove)
   document.removeEventListener('mouseup', handleMouseUp)
 
@@ -227,34 +227,34 @@ const handleMouseUp = () => {
     snapToEdge()
     isMove.value = false
   }, 50)
-    // 检查列表应该显示的位置
+    // Check where the list should be displayed
     checkShowListPosition()
 }
 
-// 吸附到边缘逻辑
+// Snap to edge logic
 const snapToEdge = () => {
   if (!mainElement.value) return
 
   const rect = mainElement.value.getBoundingClientRect()
   const windowWidth = window.innerWidth
 
-  // 计算距离左右边缘的距离
+  // Calculate distance to left and right edges
   const distanceToLeft = rect.left
   const distanceToRight = windowWidth - rect.right
 
-  // 获取当前纵向位置
+  // Get current vertical position
   const currentY = rect.top
-  // 获取窗口高度和元素高度
+  // Get window height and element height
   const windowHeight = window.innerHeight
   const elementHeight = rect.height
   const elementWidth = rect.width
   
-  // 计算最大允许的top值（确保元素不超出窗口底部）
+  // Calculate maximum allowed top value (ensure element doesn't exceed window bottom)
   const maxTop = Math.max(0, windowHeight - elementHeight)
-  // 确保top值在合理范围内
+  // Ensure top value is within reasonable range
   const clampedY = Math.min(windowHeight * 0.72, Math.min(currentY, maxTop))
 
-  // 计算当前位置信息
+  // Calculate current position information
   const position: MainPosition = {
     left: '0',
     right: '0',
@@ -263,16 +263,16 @@ const snapToEdge = () => {
     height: elementHeight
   }
 
-  // 决定吸附到哪一边
+  // Decide which side to snap to
   if (distanceToLeft <= distanceToRight) {
-    // 吸附到左边
+    // Snap to left
     mainElement.value.style.left = '0px'
     mainElement.value.style.right = 'auto'
     position.left = '0'
     position.right = 'auto'
     leftOrRight.value = 'left'
   } else {
-    // 吸附到右边
+    // Snap to right
     mainElement.value.style.left = 'auto'
     mainElement.value.style.right = '0px'
     position.left = 'auto'
@@ -280,13 +280,13 @@ const snapToEdge = () => {
     leftOrRight.value = 'right'
   }
 
-  // 移除transform并设置经过边界检查的top值
+  // Remove transform and set top value after boundary check
   mainElement.value.style.transform = 'none'
-  mainElement.value.style.top = `${clampedY}px`
 
-  // 吸附到边缘
+  // Snap to edge
   if(isMove.value){
-    // 触发拖拽结束回调
+    // Trigger drag end callback
+    mainElement.value.style.top = `${clampedY}px`
     emitEvent('dragEnd', new Event('dragEnd'), position)
   }else{
     emitEvent('click', new Event('click'))
@@ -306,7 +306,7 @@ const showOfTime = (time: number) => {
 }
 
 
-// 鼠标移入
+// Mouse enter
 const handleMouseEnter = () => {
   clearTimeout(showOfTimeTaskId.value)
   if(mainParam.value.appear === 'focus'){
@@ -314,7 +314,7 @@ const handleMouseEnter = () => {
   }
 }
 
-// 鼠标移出
+// Mouse leave
 const handleMouseLeave = () => {
   clearTimeout(showOfTimeTaskId.value)
   if(mainParam.value.appear === 'focus'){
@@ -322,9 +322,9 @@ const handleMouseLeave = () => {
   }
 }
 
-// 事件回调
+// Event callback
 const emitEvent = (name: keyof CallbackEntity, event: Event, position?: MainPosition) => {
-  console.log('监听到事件：', name)
+  console.log('Event detected:', name)
   const callback = callbacks.value[name]
   if (callback) {
     callback(event, position)
@@ -345,40 +345,49 @@ const listReqInfo = {
 
 
 const hostListLoad = () => {
-    // 初始化失败时不尝试加载列表
+    // Do not attempt to load list if initialization failed
   if(!userInfo.value.access_token || !listReqInfo.next){
     return
   }
 
   pageLoading()
-  // 设为加载中
+  // Set to loading state
   if(tcId.value){
-    // 加载 host 列表
+    // Load host list
     if(hostList.value.length > 0 && listReqInfo.next){
-      // 证明需要加载下一页
+      // Indicates need to load next page
       listReqInfo.params.last_id = hostList.value[hostList.value.length - 1].id
     }
 
     // @ts-ignore
     getAvailableList(listReqInfo.params).then((res) => {
-      console.log('host 列表', res)
-      pageSearch(`TC_ID: ${tcId.value}`)
-      showList.value = true
+      console.log('Host list', res)
+
+      // @ts-ignore
+      if(hostList.value.length == 0 && res.data.hosts.length > 0){
+        showOfTime(5000)
+      }
+
       // @ts-ignore
       hostList.value = [...hostList.value, ...res.data.hosts]
+      
+      if(hostList.value.length > 0){
+        pageSearch(`TC_ID: ${tcId.value}`)
+        showList.value = true
+      }
       
       // @ts-ignore
       if(hostList.value.length >= res.data.total){
         listReqInfo.next = false
       }
     }).catch(err => {
-      pageClose('加载失败')
+      pageClose('Load failed')
     })
 
   } else if(hostList.value.length == 0){
-    // 加载可恢复列表
+    // Load recoverable list
     getRetryList({user_id: userInfo.value.user.full_name}).then(res => {
-      console.log('host 可恢复列表', res)
+      console.log('Host recoverable list', res)
       if(tcId.value){
         return
       }
@@ -386,11 +395,11 @@ const hostListLoad = () => {
       const hosts = res.data.hosts
       if(hosts && hosts.length > 0){
         hostList.value = hosts
-        pageWarning('检测到您有待恢复的连接')
+        pageWarning('Pending connections detected')
         showOfTime(5000)
         showList.value = true
       } else {
-        // 停止加载中状态
+        // Stop loading state
         pageNone()
         showList.value = false
       }
@@ -398,22 +407,22 @@ const hostListLoad = () => {
       if(tcId.value){
         return
       }
-      pageClose('加载失败')
+      pageClose('Load failed')
     })
   }
 }
 
 
-// 加载host列表
+// Load host list
 const hostListReload = () => {
-  // 初始化失败时不尝试加载列表
+  // Do not attempt to load list if initialization failed
   if(!userInfo.value.access_token){
     return
   }
 
   listReqInfo.next = true
   if(tcId.value){
-    // 加载 host 列表
+    // Load host list
     const urlParams = new URLSearchParams(window.location.search);
     const cycle = urlParams.get('cycle');
     listReqInfo.params = {
@@ -448,7 +457,7 @@ const pageClose = (text: string) => {
 }
 
 const pageLoading = () => {
-  setPageState('blue', 'loading', '加载中', 'not-appear')
+  setPageState('blue', 'loading', 'Loading', 'not-appear')
   showList.value = false
 }
 
@@ -466,32 +475,32 @@ const setPageState = (
   mainParam.value.hostText = hostText
 }
 
-// 组件挂载后初始化
+// Initialize after component mounts
 onMounted(() => {
-  // 初始检查列表显示位置
+  // Initial check of list display position
   checkShowListPosition()
-  // 监听窗口大小变化，重新检查位置
+  // Listen to window resize, recheck position
   window.addEventListener('resize', checkShowListPosition)
 
-  // 获取用户信息并鉴权
+  // Get user information and authenticate
   getUserInfo().then(res => {
     // @ts-ignore
     userAuth(res.original_user).then(res => {
-      console.log('用户鉴权', res)
+      console.log('User authentication', res)
       // @ts-ignore
       userInfo.value = res
-      // 获取host列表
+      // Get host list
       hostListReload()
     }).catch(err => {
-      pageClose('初始化失败')
+      pageClose('Initialization failed')
     })
     console.log(res)
   }).catch(err => {
-      pageClose('初始化失败')
+      pageClose('Initialization failed')
   })
 })
 
-// 连接成功上报
+// Report successful connection
 const connectHost = (hostRecId: string) => {
   if(!hostRecId){
     
@@ -509,9 +518,9 @@ const connectHost = (hostRecId: string) => {
       connection_time: new Date().toLocaleString(),
     }
     reportConnect(params).then(res => {
-      console.log('连接成功上报', res)
+      console.log('Connection success reported', res)
     }).catch(err => {
-      console.log('连接成功上报失败', err)
+      console.log('Connection report failed', err)
     }).finally(() => {
       pageSearch(`TC_ID: ${tcId.value}`)
       isMouseEnter.value = false
@@ -522,16 +531,16 @@ const connectHost = (hostRecId: string) => {
 }
 
 
-// 组件卸载时清理事件监听
+// Clean up event listeners when component unmounts
 onUnmounted(() => {
   window.removeEventListener('resize', checkShowListPosition)
 })
 
-// 定义需要暴露给外部的方法
+// Define methods to expose to external
 defineExpose({
 
   /**
-   * 注册回调函数
+   * Register callback function
    */
   registerCallback: (callback: CallbackEntity) => {
     callbacks.value = callback
@@ -549,7 +558,7 @@ defineExpose({
 
 })
 
-// 动态class 定义
+// Dynamic class definition
 
 const mainClass = computed(() => {
   return {
@@ -578,11 +587,11 @@ const mainConClass = computed(() => {
     @mouseenter="handleMouseEnter" 
     @mouseleave="handleMouseLeave"
   >
-    <!-- 根据条件动态显示host-list的位置 -->
+    <!-- Dynamically display host-list position based on conditions -->
     <host-list 
     :host-list="hostList"
     :is-tc="!!tcId"
-    :is-show="isMouseEnter && !isMove && showList"
+    :is-show="isMouseEnter && !isMove && showList && hostList.length > 0"
     v-show="showListAbove"
     @connect="connectHost"
     @loading="pageLoading"
@@ -614,12 +623,12 @@ const mainConClass = computed(() => {
       </div>
     </div>
     
-    <!-- 默认情况下显示在下方 -->
+    <!-- Display below by default -->
      
     <host-list 
     :host-list="hostList" 
     :is-tc="!!tcId" 
-    :is-show="isMouseEnter && !isMove && showList"
+    :is-show="isMouseEnter && !isMove && showList && hostList.length > 0"
     v-show="!showListAbove"
     :user-id="userInfo.user.full_name"
     @connect="connectHost"
@@ -633,20 +642,20 @@ const mainConClass = computed(() => {
 
 .cpu-test-browser-extension-main {
   position: fixed;
-  top: 50%; /* 初始纵向位置 */
-  right: 0; /* 初始横向位置 */
+  top: 50%; /* Initial vertical position */
+  right: 0; /* Initial horizontal position */
   background-color: white;
   color: white;
   cursor: grab;
   user-select: none;
   z-index: 999999;
-  /* 根据列表位置调整padding */
+  /* Adjust padding based on list position */
   padding: v-bind('showListAbove ? "0.5vh 0.5vh 0 0.5vh" : "0.5vh 0 0.5vh 0.5vh"');
   border-radius: 2.25vh 0 0 2.25vh;
-  /* 添加阴影效果 */
+  /* Add shadow effect */
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.08);
 
-  /* 添加过渡动画使吸附更平滑 */
+  /* Add transition animation for smoother snapping */
   // transition: transform 3s ease, opacity 3s ease;
 
   &:active {

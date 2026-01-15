@@ -4,6 +4,6 @@
   "path": "realvnc_launcher.bat",
   "type": "stdio",
   "allowed_origins": [
-    "chrome-extension://jdableoknenehagpnlbonflojcphdmnd/"
+    "chrome-extension://${EXTENSION_ID}/"
   ]
 }

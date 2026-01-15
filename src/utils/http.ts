@@ -1,23 +1,23 @@
-// 网络请求封装模块
-// 基于Fetch API实现的HTTP客户端
+// Network request encapsulation module
+// HTTP client based on Fetch API implementation
 
-// 定义请求方法类型
+// Define request method type
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
 import { warning } from '/@/utils/notification'
 import browser from "webextension-polyfill";
 
-// 定义请求配置接口
+// Define request configuration interface
 export interface RequestConfig extends RequestInit {
   url: string;
   params?: Record<string, any>;
   data?: any;
   timeout?: number;
   headers?: Record<string, string>;
-  baseURL?: string; // 基础URL配置
+  baseURL?: string; // Base URL configuration
 }
 
-// 定义响应数据接口
+// Define response data interface
 export interface HttpResponse<T = any> {
   data: T;
   status: number;
@@ -26,14 +26,14 @@ export interface HttpResponse<T = any> {
   config: RequestConfig;
 }
 
-// 定义错误接口
+// Define error interface
 export interface HttpError extends Error {
   response?: HttpResponse;
   config: RequestConfig;
   code?: string;
 }
 
-// 创建错误处理函数
+// Create error handling function
 function createError(message: string, config: RequestConfig, code?: string, response?: HttpResponse): HttpError {
   const error = new Error(message) as HttpError;
   error.config = config;
@@ -42,27 +42,27 @@ function createError(message: string, config: RequestConfig, code?: string, resp
   return error;
 }
 
-// 检查URL是否需要拼接baseURL
+// Check if URL needs to prepend baseURL
 function shouldPrependBaseURL(url: string): boolean {
-  // 如果URL以http://或https://开头，则不需要拼接baseURL
+  // If URL starts with http:// or https://, no need to prepend baseURL
   return !url.startsWith('http://') && !url.startsWith('https://');
 }
 
-// 构建完整URL（处理baseURL和查询参数）
+// Build complete URL (handle baseURL and query parameters)
 function buildURL(url: string, baseURL?: string, params?: Record<string, any>): string {
   let fullURL = url;
   
-  // 如果URL不以http://或https://开头，且配置了baseURL，则拼接baseURL
-  console.log('url拼接：', baseURL, url)
+  // If URL doesn't start with http:// or https://, and baseURL is configured, prepend baseURL
+  console.log('URL concatenation:', baseURL, url)
 
   if (shouldPrependBaseURL(url) && baseURL) {
-    // 确保baseURL以/结尾，url不以/开头
+    // Ensure baseURL ends with /, URL doesn't start with /
     const normalizedBaseURL = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
     const normalizedURL = url.startsWith('/') ? url : `/${url}`;
     fullURL = `${normalizedBaseURL}${normalizedURL}`;
   }
   
-  // 处理查询参数
+  // Handle query parameters
   if (!params) return fullURL;
   
   const queryString = Object.keys(params)
@@ -73,12 +73,12 @@ function buildURL(url: string, baseURL?: string, params?: Record<string, any>): 
   return queryString ? `${fullURL}${fullURL.includes('?') ? '&' : '?'}${queryString}` : fullURL;
 }
 
-// 检查响应状态
+// Check response status
 function checkStatus(response: Response, config: RequestConfig): Response {
   if (response.status >= 200 && response.status < 300) {
     return response;
   } else if(response.status == 404 || response.status == 500){
-    warning('服务未响应或插件版本过低！')
+    warning('Service not responding or plugin version too low!')
   }
   
   const error = createError(
@@ -97,18 +97,18 @@ function checkStatus(response: Response, config: RequestConfig): Response {
   throw error;
 }
 
-// 解析响应数据
+// Parse response data
 async function parseResponse<T = any>(response: Response, config: RequestConfig): Promise<HttpResponse<T>> {
   let data: T;
   
   try {
-    // 尝试解析JSON，如果失败则返回文本
+    // Try to parse JSON, if fails return text
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
       data = await response.json();
     } else {
       const text = await response.text();
-      // 尝试将文本解析为JSON，失败则直接返回文本
+      // Try to parse text as JSON, if fails return text directly
       try {
         data = JSON.parse(text) as T;
       } catch {
@@ -128,13 +128,13 @@ async function parseResponse<T = any>(response: Response, config: RequestConfig)
   };
 }
 
-// 请求超时处理
+// Request timeout handling
 function timeoutPromise(promise: Promise<any>, ms: number, config: RequestConfig): Promise<any> {
   return new Promise((resolve, reject) => {
     const timeoutId = setTimeout(() => {
       reject(createError('Request timeout', config, 'TIMEOUT_ERROR'));
     }, ms);
-    warning('请检查本地网络！')
+    warning('Please check your local network!')
     promise
       .then(resolve)
       .catch(reject)
@@ -142,14 +142,14 @@ function timeoutPromise(promise: Promise<any>, ms: number, config: RequestConfig
   });
 }
 
-// 从环境变量获取baseURL
+// Get baseURL from environment variables
 function getBaseURLFromEnv(): string | undefined {
 
-  // 在浏览器环境中，环境变量通过import.meta.env访问
+  // In browser environment, environment variables accessed via import.meta.env
   if (typeof import.meta !== 'undefined' && import.meta.env) {
     return import.meta.env.VITE_BASE_URL || import.meta.env.BASE_URL;
   }
-  // 在Node.js环境中，通过process.env访问
+  // In Node.js environment, accessed via process.env
   // @ts-ignore
   if (typeof process !== 'undefined' && process.env) {
     // @ts-ignore
@@ -158,16 +158,16 @@ function getBaseURLFromEnv(): string | undefined {
   return undefined;
 }
 
-// 跨域请求代理函数
+// Cross-origin request proxy function
 export const proxyFetch = (url: string, options: any = {}) => {
 
   return new Promise((resolve, reject) => {
-        // @ts-ignore 在content script中使用chrome.runtime，在background script中使用browser.runtime
+        // @ts-ignore Use chrome.runtime in content script, browser.runtime in background script
         const runtime = browser.runtime
 
         const requestUrl = buildURL(url, defaultConfig.baseURL, options.params);
         
-        console.log('proxyFetch调用:', requestUrl, options.method, options.body);
+        console.log('proxyFetch call:', requestUrl, options.method, options.body);
         
         runtime.sendMessage({
             type: 'apiRequest',
@@ -175,7 +175,7 @@ export const proxyFetch = (url: string, options: any = {}) => {
             method: options.method || 'GET',
             headers: options.headers || {},
             credentials: options.credentials || 'omit',
-            body: options.body // 添加body参数
+            body: options.body // Add body parameter
         }).then((res: Record<string, any>) => {
           if(res.success && res.data !== undefined){
             resolve(res.data)
@@ -189,28 +189,28 @@ export const proxyFetch = (url: string, options: any = {}) => {
 
 }
 
-// 默认配置
+// Default configuration
 const defaultConfig: Partial<RequestConfig> = {
   headers: {
     'Content-Type': 'application/json'
   },
-  timeout: 30000, // 默认超时30秒
-  credentials: 'include', // 包含cookies
-  baseURL: getBaseURLFromEnv() // 从环境变量获取baseURL
+  timeout: 30000, // Default timeout 30 seconds
+  credentials: 'include', // Include cookies
+  baseURL: getBaseURLFromEnv() // Get baseURL from environment variables
 };
 
-// 请求拦截器列表
+// Request interceptor list
 const requestInterceptors: Array<(config: RequestConfig) => RequestConfig | Promise<RequestConfig>> = [];
 
-// 响应拦截器列表
+// Response interceptor list
 const responseInterceptors: Array<(response: HttpResponse) => HttpResponse | Promise<HttpResponse>> = [];
 
-// 响应错误拦截器列表
+// Response error interceptor list
 const responseErrorInterceptors: Array<(error: HttpError) => HttpError | Promise<HttpError>> = [];
 
-// 发送请求的核心方法
+// Core method to send requests
 async function request<T = any>(config: RequestConfig): Promise<HttpResponse<T>> {
-  // 合并配置
+  // Merge configurations
   const mergedConfig: RequestConfig = {
     ...defaultConfig,
     ...config,
@@ -221,17 +221,17 @@ async function request<T = any>(config: RequestConfig): Promise<HttpResponse<T>>
   };
   
   try {
-    // 应用请求拦截器
+    // Apply request interceptors
     let processedConfig = { ...mergedConfig };
     for (const interceptor of requestInterceptors) {
       processedConfig = await interceptor(processedConfig);
     }
     
-    // 准备请求参数
+    // Prepare request parameters
     const { url, method = 'GET', params, data, timeout, baseURL, ...fetchOptions } = processedConfig;
     const requestUrl = buildURL(url, baseURL, params);
     
-    // 如果有数据，且不是GET/HEAD请求，则设置body
+    // If there is data, and it's not a GET/HEAD request, set body
     if (data && method !== 'GET' && method !== 'HEAD') {
       if (typeof data === 'object' && !(data instanceof FormData)) {
         fetchOptions.body = JSON.stringify(data);
@@ -240,7 +240,7 @@ async function request<T = any>(config: RequestConfig): Promise<HttpResponse<T>>
       }
     }
     
-    // 发送请求
+    // Send request
     let fetchPromise = fetch(requestUrl, {
       ...fetchOptions,
       method
@@ -248,22 +248,22 @@ async function request<T = any>(config: RequestConfig): Promise<HttpResponse<T>>
       .then(response => checkStatus(response, processedConfig))
       .then(response => parseResponse<T>(response, processedConfig));
     
-    // 如果设置了超时，应用超时处理
+    // If timeout is set, apply timeout handling
     if (timeout) {
       fetchPromise = timeoutPromise(fetchPromise, timeout, processedConfig);
     }
     
-    // 获取响应
+    // Get response
     let response = await fetchPromise;
     
-    // 应用响应拦截器
+    // Apply response interceptors
     for (const interceptor of responseInterceptors) {
       response = await interceptor(response);
     }
     
     return response;
   } catch (error) {
-    // 应用响应错误拦截器
+    // Apply response error interceptors
     let processedError = error as HttpError;
     for (const interceptor of responseErrorInterceptors) {
       processedError = await interceptor(processedError);
@@ -273,7 +273,7 @@ async function request<T = any>(config: RequestConfig): Promise<HttpResponse<T>>
   }
 }
 
-// 便捷方法：GET
+// Convenience method: GET
 export function get<T = any>(url: string, config?: Omit<RequestConfig, 'url' | 'method' | 'data'>): Promise<HttpResponse<T>> {
   return request<T>({
     ...config,
@@ -282,7 +282,7 @@ export function get<T = any>(url: string, config?: Omit<RequestConfig, 'url' | '
   });
 }
 
-// 便捷方法：POST
+// Convenience method: POST
 export function post<T = any>(url: string, data?: any, config?: Omit<RequestConfig, 'url' | 'method' | 'data'>): Promise<HttpResponse<T>> {
   return request<T>({
     ...config,
@@ -292,7 +292,7 @@ export function post<T = any>(url: string, data?: any, config?: Omit<RequestConf
   });
 }
 
-// 便捷方法：PUT
+// Convenience method: PUT
 export function put<T = any>(url: string, data?: any, config?: Omit<RequestConfig, 'url' | 'method' | 'data'>): Promise<HttpResponse<T>> {
   return request<T>({
     ...config,
@@ -302,7 +302,7 @@ export function put<T = any>(url: string, data?: any, config?: Omit<RequestConfi
   });
 }
 
-// 便捷方法：DELETE
+// Convenience method: DELETE
 export function del<T = any>(url: string, config?: Omit<RequestConfig, 'url' | 'method' | 'data'>): Promise<HttpResponse<T>> {
   return request<T>({
     ...config,
@@ -311,7 +311,7 @@ export function del<T = any>(url: string, config?: Omit<RequestConfig, 'url' | '
   });
 }
 
-// 便捷方法：PATCH
+// Convenience method: PATCH
 export function patch<T = any>(url: string, data?: any, config?: Omit<RequestConfig, 'url' | 'method' | 'data'>): Promise<HttpResponse<T>> {
   return request<T>({
     ...config,
@@ -321,33 +321,33 @@ export function patch<T = any>(url: string, data?: any, config?: Omit<RequestCon
   });
 }
 
-// 添加请求拦截器
+// Add request interceptor
 export function addRequestInterceptor(interceptor: (config: RequestConfig) => RequestConfig | Promise<RequestConfig>): void {
   requestInterceptors.push(interceptor);
 }
 
-// 添加响应拦截器
+// Add response interceptor
 export function addResponseInterceptor(interceptor: (response: HttpResponse) => HttpResponse | Promise<HttpResponse>): void {
   responseInterceptors.push(interceptor);
 }
 
-// 添加响应错误拦截器
+// Add response error interceptor
 export function addResponseErrorInterceptor(interceptor: (error: HttpError) => HttpError | Promise<HttpError>): void {
   responseErrorInterceptors.push(interceptor);
 }
 
-// 设置默认配置
+// Set default configuration
 export function setDefaults(config: Partial<RequestConfig>): void {
   Object.assign(defaultConfig, config);
 }
 
-// 导出默认对象
+// Export default object
 const http = {
   request,
   get,
   post,
   put,
-  delete: del, // 使用del作为delete的别名，避免与关键字冲突
+  delete: del, // Use del as alias for delete to avoid keyword conflict
   patch,
   addRequestInterceptor,
   addResponseInterceptor,
@@ -357,32 +357,32 @@ const http = {
 
 export default http;
 
-// 示例使用说明：
+// Example usage instructions:
 /*
-// 基本使用
+// Basic usage
 import http from './http';
 
-// GET请求
+// GET request
 http.get('/api/users')
   .then(response => {
     console.log(response.data);
   })
   .catch(error => {
-    console.error('请求失败:', error);
+    console.error('Request failed:', error);
   });
 
-// POST请求
-http.post('/api/users', { name: '张三', age: 30 })
+// POST request
+http.post('/api/users', { name: 'John', age: 30 })
   .then(response => {
-    console.log('创建成功:', response.data);
+    console.log('Created successfully:', response.data);
   })
   .catch(error => {
-    console.error('创建失败:', error);
+    console.error('Creation failed:', error);
   });
 
-// 添加请求拦截器
+// Add request interceptor
 http.addRequestInterceptor(config => {
-  // 添加认证token
+  // Add authentication token
   const token = localStorage.getItem('token');
   if (token) {
     config.headers = {
@@ -393,23 +393,23 @@ http.addRequestInterceptor(config => {
   return config;
 });
 
-// 添加响应拦截器
+// Add response interceptor
 http.addResponseInterceptor(response => {
-  // 统一处理响应数据
+  // Unified response data processing
   return response;
 });
 
-// 添加错误拦截器
+// Add error interceptor
 http.addResponseErrorInterceptor(error => {
-  // 处理401未授权
+  // Handle 401 unauthorized
   if (error.response && error.response.status === 401) {
-    // 跳转到登录页
+    // Redirect to login page
     window.location.href = '/login';
   }
   return Promise.reject(error);
 });
 
-// 设置默认配置
+// Set default configuration
 http.setDefaults({
   baseURL: 'https://api.example.com',
   timeout: 5000

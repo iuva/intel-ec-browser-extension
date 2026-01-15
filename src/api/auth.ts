@@ -1,5 +1,5 @@
 /**
- * 鉴权相关接口封装
+ * Authentication related API encapsulation
  */
 
 import http from '/@/utils/http'
@@ -10,18 +10,18 @@ const urls = {
     auth: 'https://plan.xcopilot.intel.com/api/v1/auth/login'
 }
 
-// 获取用户信息
+// Get user information
 export const getUserInfo = () => {
-    // 使用代理方式处理跨域请求
+    // Use proxy method to handle cross-origin requests
     return proxyFetch(urls.user, {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
     })
 }
 
-// 用户鉴权
+// User authentication
 export const userAuth = (userId: string) => {
-    // 使用代理方式处理跨域请求
+    // Use proxy method to handle cross-origin requests
     return proxyFetch(urls.auth, {
         method: 'POST',
         headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },

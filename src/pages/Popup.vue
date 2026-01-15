@@ -5,7 +5,7 @@ console.log("Hello from the popup!");
 <template>
   <div>
     <p>
-      当前版本：0.0.1
+      Current Version: 0.0.1
     </p>
   </div>
 </template>

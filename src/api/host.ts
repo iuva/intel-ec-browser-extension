@@ -1,5 +1,5 @@
 /**
- * host相关接口封装
+ * Host related API encapsulation
  */
 
 import http from '/@/utils/http'
@@ -16,8 +16,8 @@ const urls = {
 
 
 /**
- * 获取可用主机列表
- * @returns 可用主机列表
+ * Get available host list
+ * @returns Available host list
  */
 export const getAvailableList = (data: Record<any, any>) => proxyFetch(urls.available, {
     method: 'POST',
@@ -26,8 +26,8 @@ export const getAvailableList = (data: Record<any, any>) => proxyFetch(urls.avai
 })
 
 /**
- * 获取重试主机列表
- * @returns 重试主机列表
+ * Get retry host list
+ * @returns Retry host list
  */
 export const getRetryList = (data: Record<any, any>) => proxyFetch(urls.retry, {
     method: 'POST',
@@ -36,7 +36,7 @@ export const getRetryList = (data: Record<any, any>) => proxyFetch(urls.retry, {
 })
 
 /**
- * 释放主机
+ * Release host
  */
 export const releaseHost = (data: Record<any, any>) => proxyFetch(urls.release, {
     method: 'POST',
@@ -45,7 +45,7 @@ export const releaseHost = (data: Record<any, any>) => proxyFetch(urls.release, 
 })
 
 /**
- * 获取连接信息
+ * Get connection information
  */
 export const hostInfo = (data: Record<any, any>) => proxyFetch(urls.connect, {
     method: 'POST',
@@ -54,7 +54,7 @@ export const hostInfo = (data: Record<any, any>) => proxyFetch(urls.connect, {
 })
 
 /**
- * 上报连接结果
+ * Report connection result
  */
 export const reportConnect = (data: Record<any, any>) => proxyFetch(urls.report, {
     method: 'POST',

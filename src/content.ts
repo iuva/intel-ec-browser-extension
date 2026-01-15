@@ -2,7 +2,7 @@
 import Main from './components/main.vue'
 import { createApp } from 'vue'
 
-// 创建一个 div 元素用于挂载 Vue 应用
+// Create a div element to mount the Vue application
 const appContainer = document.createElement('div')
 appContainer.id = 'cpu-test-extension-container'
 appContainer.style.position = 'fixed'
@@ -14,14 +14,15 @@ appContainer.style.height = '0'
 
 document.body.appendChild(appContainer)
 
-// 保存Vue应用实例的引用
+// Save reference to the Vue application instance
 const appInstance = createApp(Main).mount(appContainer)
 
-// 根据错误提示，appInstance 上不存在 registerCallback 属性，推测需要确保 appInstance 有该方法后再调用
+// Based on the error message, the registerCallback property does not exist on appInstance,
+// so we need to ensure appInstance has this method before calling it
 if ('registerCallback' in appInstance) {
     (appInstance as any).registerCallback({
         click: (event?: Event) => {
-            console.log('组件获得焦点', event)
+            console.log('Component gained focus', event)
             // if ('setParam' in appInstance) {
             //     (appInstance as any).setParam({
             //         background: 'warning',

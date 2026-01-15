@@ -1,89 +1,89 @@
 #!/usr/bin/env node
 
 /**
- * 智能构建脚本 - 自动检测并包含Python便携版
- * 在构建浏览器扩展时，自动检查项目根目录是否有Python便携版压缩包
- * 如果有则解压到dist目录，如果没有则下载后解压到dist目录
+ * Smart Build Script - Automatically detect and include portable Python
+ * When building browser extension, automatically check if portable Python zip exists in project root
+ * If exists, extract to dist directory; if not, download and extract to dist directory
  */
 
-// 使用CommonJS格式避免ES模块问题
+// Use CommonJS format to avoid ES module issues
 const { spawn, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
 console.log('========================================');
-console.log('  智能构建 - 自动包含Python便携版');
+console.log('  Smart Build - Auto Include Portable Python');
 console.log('========================================\n');
 
-// 配置
+// Configuration
 const PYTHON_VERSION = '3.11.7';
 const PYTHON_ZIP_NAME = `python-${PYTHON_VERSION}-portable.zip`;
 const PYTHON_OUTPUT_DIR = path.join('dist', 'python-portable');
 
 /**
- * 检查文件是否存在且有效
+ * Check if file exists and is valid
  */
 function checkPythonZipExists() {
     const zipPath = path.join(process.cwd(), PYTHON_ZIP_NAME);
     
     if (!fs.existsSync(zipPath)) {
-        console.log(`[INFO] Python压缩包不存在: ${PYTHON_ZIP_NAME}`);
+        console.log(`[INFO] Python zip file does not exist: ${PYTHON_ZIP_NAME}`);
         return false;
     }
     
     const stats = fs.statSync(zipPath);
     if (stats.size === 0) {
-        console.log(`[WARNING] Python压缩包为空文件 (0字节)，将重新下载`);
-        fs.unlinkSync(zipPath); // 删除空文件
+        console.log(`[WARNING] Python zip file is empty (0 bytes), will re-download`);
+        fs.unlinkSync(zipPath); // Delete empty file
         return false;
     }
     
-    console.log(`[OK] 找到有效的Python压缩包: ${PYTHON_ZIP_NAME} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
+    console.log(`[OK] Found valid Python zip file: ${PYTHON_ZIP_NAME} (${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
     return true;
 }
 
 /**
- * 解压Python压缩包
+ * Extract Python zip file
  */
 function extractPythonZip() {
     const zipPath = path.join(process.cwd(), PYTHON_ZIP_NAME);
     const outputDir = path.join(process.cwd(), PYTHON_OUTPUT_DIR);
     
-    // 确保输出目录存在
+    // Ensure output directory exists
     if (!fs.existsSync(outputDir)) {
         fs.mkdirSync(outputDir, { recursive: true });
     }
     
-    console.log(`[INFO] 解压Python到: ${PYTHON_OUTPUT_DIR}`);
+    console.log(`[INFO] Extracting Python to: ${PYTHON_OUTPUT_DIR}`);
     
     try {
-        // 使用PowerShell解压
+        // Use PowerShell to extract
         const result = spawnSync('powershell', [
             '-Command',
             `Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('${zipPath}', '${outputDir}')`
         ], { stdio: 'inherit' });
         
         if (result.status === 0) {
-            console.log('[OK] Python解压成功');
+            console.log('[OK] Python extraction successful');
             return true;
         } else {
-            console.log('[ERROR] Python解压失败');
+            console.log('[ERROR] Python extraction failed');
             return false;
         }
     } catch (error) {
-        console.log('[ERROR] Python解压出错:', error.message);
+        console.log('[ERROR] Python extraction error:', error.message);
         return false;
     }
 }
 
 /**
- * 下载Python便携版
+ * Download portable Python
  */
 function downloadPython() {
-    console.log(`[INFO] 下载Python便携版...`);
+    console.log(`[INFO] Downloading portable Python...`);
     
     try {
-        // 使用现有的PowerShell下载脚本
+        // Use existing PowerShell download script
         const result = spawnSync('powershell', [
             '-ExecutionPolicy', 'Bypass',
             '-File', './scripts/download_python.ps1',
@@ -92,93 +92,93 @@ function downloadPython() {
         ], { stdio: 'inherit' });
         
         if (result.status === 0) {
-            console.log('[OK] Python下载成功');
+            console.log('[OK] Python download successful');
             return true;
         } else {
-            console.log('[ERROR] Python下载失败');
+            console.log('[ERROR] Python download failed');
             return false;
         }
     } catch (error) {
-        console.log('[ERROR] Python下载出错:', error.message);
+        console.log('[ERROR] Python download error:', error.message);
         return false;
     }
 }
 
 /**
- * 验证Python是否可用
+ * Verify Python is available
  */
 function verifyPython() {
     const pythonExe = path.join(process.cwd(), PYTHON_OUTPUT_DIR, 'python.exe');
     
     if (fs.existsSync(pythonExe)) {
-        console.log('[OK] Python验证通过: python.exe存在');
+        console.log('[OK] Python verification passed: python.exe exists');
         return true;
     } else {
-        console.log('[ERROR] Python验证失败: python.exe不存在');
+        console.log('[ERROR] Python verification failed: python.exe does not exist');
         return false;
     }
 }
 
 /**
- * 构建浏览器扩展（使用异步spawn避免卡死）
+ * Build browser extension (use async spawn to avoid hanging)
  */
 function buildExtension(browser) {
     return new Promise((resolve) => {
-        console.log(`[INFO] 构建浏览器扩展: ${browser}`);
+        console.log(`[INFO] Building browser extension: ${browser}`);
         
         const buildProcess = spawn('npm', ['run', `build:dist:${browser}`], { 
             stdio: 'inherit',
             shell: true 
         });
         
-        // 设置超时（10分钟）
+        // Set timeout (10 minutes)
         const timeout = setTimeout(() => {
-            console.log('[ERROR] 构建超时（10分钟），强制终止进程');
+            console.log('[ERROR] Build timeout (10 minutes), forcing process termination');
             buildProcess.kill('SIGTERM');
             resolve(false);
-        }, 10 * 60 * 1000); // 10分钟
+        }, 10 * 60 * 1000); // 10 minutes
         
         buildProcess.on('close', (code) => {
             clearTimeout(timeout);
             
             if (code === 0) {
-                console.log('[OK] 浏览器扩展构建成功');
+                console.log('[OK] Browser extension build successful');
                 resolve(true);
             } else {
-                console.log(`[ERROR] 浏览器扩展构建失败，退出码: ${code}`);
+                console.log(`[ERROR] Browser extension build failed, exit code: ${code}`);
                 resolve(false);
             }
         });
         
         buildProcess.on('error', (error) => {
             clearTimeout(timeout);
-            console.log('[ERROR] 构建出错:', error.message);
+            console.log('[ERROR] Build error:', error.message);
             resolve(false);
         });
     });
 }
 
 /**
- * 复制native-host目录到dist目录
+ * Copy native-host directory to dist directory
  */
 function copyNativeHost() {
     const sourceDir = path.join(process.cwd(), 'native-host');
     const destDir = path.join(process.cwd(), 'dist', 'native-host');
     
     if (!fs.existsSync(sourceDir)) {
-        console.log('[WARNING] native-host目录不存在，跳过复制');
+        console.log('[WARNING] native-host directory does not exist, skipping copy');
         return false;
     }
     
-    console.log('[INFO] 复制native-host目录到dist目录');
+    console.log('[INFO] Copying native-host directory to dist directory');
     
     try {
-        // 确保目标目录存在
+        // Ensure target directory exists
         if (!fs.existsSync(destDir)) {
             fs.mkdirSync(destDir, { recursive: true });
         }
         
-        // 复制所有文件
+        // Copy all files
         const files = fs.readdirSync(sourceDir);
         let copiedCount = 0;
         
@@ -186,43 +186,43 @@ function copyNativeHost() {
             const sourcePath = path.join(sourceDir, file);
             const destPath = path.join(destDir, file);
             
-            // 跳过temp目录
+            // Skip temp directory
             if (file === 'temp') {
-                console.log(`[INFO] 跳过temp目录: ${file}`);
+                console.log(`[INFO] Skipping temp directory: ${file}`);
                 continue;
             }
             
             const stats = fs.statSync(sourcePath);
             
             if (stats.isDirectory()) {
-                // 递归复制目录
+                // Recursively copy directory
                 copyDirectory(sourcePath, destPath);
                 copiedCount++;
             } else {
-                // 复制文件
+                // Copy file
                 fs.copyFileSync(sourcePath, destPath);
                 copiedCount++;
             }
         }
         
-        console.log(`[OK] 成功复制 ${copiedCount} 个文件/目录到native-host`);
+        console.log(`[OK] Successfully copied ${copiedCount} files/directories to native-host`);
         return true;
     } catch (error) {
-        console.log('[ERROR] 复制native-host目录失败:', error.message);
+        console.log('[ERROR] Failed to copy native-host directory:', error.message);
         return false;
     }
 }
 
 /**
- * 递归复制目录
+ * Recursively copy directory
  */
 function copyDirectory(source, destination) {
-    // 创建目标目录
+    // Create target directory
     if (!fs.existsSync(destination)) {
         fs.mkdirSync(destination, { recursive: true });
     }
     
-    // 复制目录内容
+    // Copy directory contents
     const files = fs.readdirSync(source);
     
     for (const file of files) {
@@ -240,73 +240,73 @@ function copyDirectory(source, destination) {
 }
 
 /**
- * 主函数
+ * Main function
  */
 async function main() {
-    // 获取浏览器类型参数
+    // Get browser type parameter
     const browser = process.argv[2] || 'chrome';
-    console.log(`目标浏览器: ${browser}\n`);
+    console.log(`Target browser: ${browser}\n`);
     
-    // 调试信息：显示当前工作目录和参数
-    console.log(`[DEBUG] 当前工作目录: ${process.cwd()}`);
-    console.log(`[DEBUG] 脚本参数: ${process.argv.join(', ')}`);
+    // Debug info: show current working directory and parameters
+    console.log(`[DEBUG] Current working directory: ${process.cwd()}`);
+    console.log(`[DEBUG] Script parameters: ${process.argv.join(', ')}`);
     
-    // 步骤1: 检查现有Python压缩包
-    console.log('步骤1: 检查Python便携版');
+    // Step 1: Check existing Python zip file
+    console.log('Step 1: Check portable Python');
     const hasPythonZip = checkPythonZipExists();
     
-    // 步骤2: 处理Python
-    console.log('\n步骤2: 处理Python便携版');
+    // Step 2: Process Python
+    console.log('\nStep 2: Process portable Python');
     let pythonProcessed = false;
     
     if (hasPythonZip) {
-        // 解压现有压缩包
+        // Extract existing zip file
         pythonProcessed = extractPythonZip();
     } else {
-        // 下载新压缩包
+        // Download new zip file
         pythonProcessed = downloadPython();
     }
     
     if (!pythonProcessed) {
-        console.log('[WARNING] Python处理失败，继续构建但不包含Python');
+        console.log('[WARNING] Python processing failed, continuing build without Python');
     }
     
-    // 步骤3: 验证Python
-    console.log('\n步骤3: 验证Python');
+    // Step 3: Verify Python
+    console.log('\nStep 3: Verify Python');
     const pythonVerified = verifyPython();
     
     if (pythonVerified) {
-        console.log('[SUCCESS] Python便携版已包含在构建中');
+        console.log('[SUCCESS] Portable Python included in build');
     }
     
-    // 步骤4: 构建浏览器扩展
-    console.log('\n步骤4: 构建浏览器扩展');
+    // Step 4: Build browser extension
+    console.log('\nStep 4: Build browser extension');
     const buildSuccess = await buildExtension(browser);
     
     if (!buildSuccess) {
-        console.log('\n[ERROR] 构建失败');
+        console.log('\n[ERROR] Build failed');
         process.exit(1);
     }
     
-    // 步骤5: 复制native-host目录
-    console.log('\n步骤5: 复制native-host目录');
+    // Step 5: Copy native-host directory
+    console.log('\nStep 5: Copy native-host directory');
     const nativeHostCopied = copyNativeHost();
     
     if (buildSuccess) {
-        console.log('\n[SUCCESS] 智能构建完成！');
+        console.log('\n[SUCCESS] Smart build completed!');
         console.log('========================================');
-        console.log(`- 浏览器扩展: dist/`);
-        console.log(`- Python便携版: ${pythonVerified ? PYTHON_OUTPUT_DIR : '未包含'}`);
-        console.log(`- Native Host: ${nativeHostCopied ? '已包含' : '未包含'}`);
-        console.log(`- 构建模式: ${browser}`);
+        console.log(`- Browser extension: dist/`);
+        console.log(`- Portable Python: ${pythonVerified ? PYTHON_OUTPUT_DIR : 'Not included'}`);
+        console.log(`- Native Host: ${nativeHostCopied ? 'Included' : 'Not included'}`);
+        console.log(`- Build mode: ${browser}`);
         console.log('========================================');
     } else {
-        console.log('\n[ERROR] 构建失败');
+        console.log('\n[ERROR] Build failed');
         process.exit(1);
     }
 }
 
-// 执行主函数
+// Execute main function
 if (require.main === module) {
     main();
 }

@@ -1,10 +1,10 @@
-// 全局消息通知工具
-// 提供可在项目任意位置调用的通知方法，遵循响应式设计原则
+// Global message notification utility
+// Provides notification methods that can be called from anywhere in the project, following responsive design principles
 
-// 确保TypeScript识别CSSStyleDeclarationInit类型
+// Ensure TypeScript recognizes CSSStyleDeclarationInit type
 type CSSStyleDeclarationInit = Partial<CSSStyleDeclaration>;
 
-// 通知类型枚举
+// Notification type enumeration
 export enum NotificationType {
   INFO = 'info',
   SUCCESS = 'success',
@@ -12,35 +12,35 @@ export enum NotificationType {
   ERROR = 'error'
 }
 
-// 通知配置接口
+// Notification configuration interface
 export interface NotificationConfig {
   type?: NotificationType;
-  duration?: number; // 显示时长，单位毫秒，默认3000
-  showClose?: boolean; // 是否显示关闭按钮，默认true
-  onClick?: () => void; // 点击通知回调
+  duration?: number; // Display duration in milliseconds, default 3000
+  showClose?: boolean; // Whether to show close button, default true
+  onClick?: () => void; // Click notification callback
 }
 
-// 通知管理器类
+// Notification manager class
 class NotificationManager {
   private container: HTMLElement | null = null;
   private notificationStack: HTMLElement[] = [];
   private readonly DEFAULT_DURATION = 3000;
-  private readonly MIN_GAP = 0.5; // 通知之间的最小间隔，单位vh
+  private readonly MIN_GAP = 0.5; // Minimum gap between notifications, unit vh
 
   constructor() {
     this.initContainer();
   }
 
-  // 初始化通知容器
+  // Initialize notification container
   private initContainer(): void {
-    // 检查容器是否已存在
+    // Check if container already exists
     if (this.container) return;
 
-    // 创建容器元素
+    // Create container element
     this.container = document.createElement('div');
     this.container.className = 'notification-container';
     
-    // 添加容器样式 - 距离顶部2vh，横向居中
+    // Add container styles - 2vh from top, horizontally centered
     Object.assign(this.container.style, {
       position: 'fixed',
       top: '0',
@@ -51,36 +51,36 @@ class NotificationManager {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      paddingTop: '2vh' // 距离顶部2vh
+      paddingTop: '2vh' // 2vh from top
     });
 
-    // 添加到文档中
+    // Add to document
     document.body.appendChild(this.container);
   }
 
-  // 创建单个通知元素
+  // Create single notification element
   private createNotificationElement(message: string, config: NotificationConfig): HTMLElement {
-    // 创建通知元素
+    // Create notification element
     const notification = document.createElement('div');
     notification.className = `notification notification-${config.type || NotificationType.INFO}`;
     
-    // 设置通知内容
+    // Set notification content
     notification.textContent = message;
 
-    // 基础样式 - 使用vh单位确保样式一致性
+    // Base styles - using vh units to ensure style consistency
     const baseStyles: CSSStyleDeclarationInit = {
       pointerEvents: 'auto',
-      maxWidth: '80vw', // 最大宽度80vw
+      maxWidth: '80vw', // Maximum width 80vw
       width: 'auto',
       minWidth: '10vh',
-      padding: '1vh 2vh', // 内边距使用vh
-      marginBottom: `${this.MIN_GAP}vh`, // 间距使用vh
-      fontSize: '2vh', // 字号使用vh
+      padding: '1vh 2vh', // Padding using vh
+      marginBottom: `${this.MIN_GAP}vh`, // Spacing using vh
+      fontSize: '2vh', // Font size using vh
       fontWeight: 'normal',
       lineHeight: '1.5',
-      borderRadius: '1vh', // 圆角使用vh
-      boxShadow: '0 0.5vh 2vh rgba(0, 0, 0, 0.2)', // 阴影使用vh
-      wordWrap: 'break-word', // 文字可折行
+      borderRadius: '1vh', // Border radius using vh
+      boxShadow: '0 0.5vh 2vh rgba(0, 0, 0, 0.2)', // Shadow using vh
+      wordWrap: 'break-word', // Text can wrap
       whiteSpace: 'pre-wrap',
       transition: 'all 0.3s ease',
       backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -91,11 +91,11 @@ class NotificationManager {
       transform: 'translateY(-1vh)'
     };
 
-    // 根据类型设置不同样式
+    // Set different styles based on type
     const typeStyles = this.getTypeStyles(config.type || NotificationType.INFO);
     Object.assign(notification.style, baseStyles, typeStyles);
 
-    // 如果需要关闭按钮
+    // If close button is needed
     if (config.showClose === true) {
       const closeBtn = document.createElement('button');
       closeBtn.className = 'notification-close';
@@ -103,12 +103,12 @@ class NotificationManager {
       
       Object.assign(closeBtn.style, {
         position: 'absolute',
-        top: '0.5vh', // 使用vh
-        right: '0.5vh', // 使用vh
-        width: '2.5vh', // 使用vh
-        height: '2.5vh', // 使用vh
+        top: '0.5vh', // Using vh
+        right: '0.5vh', // Using vh
+        width: '2.5vh', // Using vh
+        height: '2.5vh', // Using vh
         padding: '0',
-        fontSize: '2vh', // 使用vh
+        fontSize: '2vh', // Using vh
         fontWeight: 'bold',
         lineHeight: '1',
         color: 'inherit',
@@ -136,7 +136,7 @@ class NotificationManager {
       notification.appendChild(closeBtn);
     }
 
-    // 添加点击事件
+    // Add click event
     if (config.onClick) {
       notification.style.cursor = 'pointer';
       notification.addEventListener('click', config.onClick);
@@ -145,45 +145,45 @@ class NotificationManager {
     return notification;
   }
 
-  // 获取不同类型的样式
+  // Get styles for different types
   private getTypeStyles(type: NotificationType): CSSStyleDeclarationInit {
     switch (type) {
       case NotificationType.SUCCESS:
         return {
           backgroundColor: 'rgba(240, 249, 235, 0.95)',
           color: '#13c2c2',
-          borderLeft: '1vh solid #13c2c2' // 使用vh
+          borderLeft: '1vh solid #13c2c2' // Using vh
         };
       case NotificationType.WARNING:
         return {
           backgroundColor: 'rgba(253, 246, 236, 0.95)',
           color: '#fa8c16',
-          borderLeft: '1vh solid #fa8c16' // 使用vh
+          borderLeft: '1vh solid #fa8c16' // Using vh
         };
       case NotificationType.ERROR:
         return {
           backgroundColor: 'rgba(254, 240, 240, 0.95)',
           color: '#f5222d',
-          borderLeft: '1vh solid #f5222d' // 使用vh
+          borderLeft: '1vh solid #f5222d' // Using vh
         };
       case NotificationType.INFO:
       default:
         return {
           backgroundColor: 'rgba(240, 242, 245, 0.95)',
           color: '#1890ff',
-          borderLeft: '1vh solid #1890ff' // 使用vh
+          borderLeft: '1vh solid #1890ff' // Using vh
         };
     }
   }
 
-  // 显示通知
+  // Show notification
   private showNotification(notification: HTMLElement): void {
-    // 添加到容器
+    // Add to container
     if (this.container) {
       this.container.appendChild(notification);
       this.notificationStack.push(notification);
 
-      // 强制重排后添加动画
+      // Add animation after forced reflow
       setTimeout(() => {
         notification.style.opacity = '1';
         notification.style.transform = 'translateY(0)';
@@ -191,19 +191,19 @@ class NotificationManager {
     }
   }
 
-  // 移除通知
+  // Remove notification
   private removeNotification(notification: HTMLElement): void {
-    // 动画效果
+    // Animation effect
     notification.style.opacity = '0';
     notification.style.transform = 'translateY(-1vh)';
 
-    // 动画结束后移除
+    // Remove after animation ends
     setTimeout(() => {
       if (this.container && notification.parentNode === this.container) {
         this.container.removeChild(notification);
       }
       
-      // 从栈中移除
+      // Remove from stack
       const index = this.notificationStack.indexOf(notification);
       if (index > -1) {
         this.notificationStack.splice(index, 1);
@@ -211,9 +211,9 @@ class NotificationManager {
     }, 300);
   }
 
-  // 通知方法
+  // Notification method
   public notify(message: string, config: NotificationConfig = {}): void {
-    // 确保在DOM加载完成后执行
+    // Ensure execution after DOM is loaded
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
         this.showNotificationWithTimer(message, config);
@@ -223,12 +223,12 @@ class NotificationManager {
     }
   }
 
-  // 显示通知并设置定时器
+  // Show notification and set timer
   private showNotificationWithTimer(message: string, config: NotificationConfig): void {
     const notification = this.createNotificationElement(message, config);
     this.showNotification(notification);
 
-    // 设置自动关闭定时器
+    // Set auto-close timer
     if (config.duration !== 0) {
       setTimeout(() => {
         this.removeNotification(notification);
@@ -236,7 +236,7 @@ class NotificationManager {
     }
   }
 
-  // 特定类型的通知方法
+  // Specific type notification methods
   public info(message: string, config: Omit<NotificationConfig, 'type'> = {}): void {
     this.notify(message, { ...config, type: NotificationType.INFO });
   }
@@ -253,7 +253,7 @@ class NotificationManager {
     this.notify(message, { ...config, type: NotificationType.ERROR });
   }
 
-  // 清除所有通知
+  // Clear all notifications
   public clearAll(): void {
     this.notificationStack.forEach(notification => {
       this.removeNotification(notification);
@@ -262,10 +262,10 @@ class NotificationManager {
   }
 }
 
-// 创建单例实例
+// Create singleton instance
 const notificationManager = new NotificationManager();
 
-// 导出通知方法
+// Export notification methods
 export const notify = notificationManager.notify.bind(notificationManager);
 export const info = notificationManager.info.bind(notificationManager);
 export const success = notificationManager.success.bind(notificationManager);
@@ -273,30 +273,30 @@ export const warning = notificationManager.warning.bind(notificationManager);
 export const error = notificationManager.error.bind(notificationManager);
 export const clearAll = notificationManager.clearAll.bind(notificationManager);
 
-// 导出默认对象
+// Export default object
 export default notificationManager;
 
-// 使用示例
+// Usage examples
 /*
-// 引入通知工具
+// Import notification utility
 import notification, { info, success, warning, error } from './utils/notification';
 
-// 基本使用
-info('这是一条提示信息');
-success('操作成功！');
-warning('警告信息');
-error('错误信息');
+// Basic usage
+info('This is an info message');
+success('Operation successful!');
+warning('Warning message');
+error('Error message');
 
-// 自定义配置
-notification.notify('自定义通知', {
+// Custom configuration
+notification.notify('Custom notification', {
   type: NotificationType.SUCCESS,
   duration: 5000,
   showClose: true,
   onClick: () => {
-    console.log('通知被点击');
+    console.log('Notification clicked');
   }
 });
 
-// 清除所有通知
+// Clear all notifications
 notification.clearAll();
 */

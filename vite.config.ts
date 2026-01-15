@@ -15,13 +15,13 @@ function generateManifest() {
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-    // 加载环境变量
+    // Load environment variables
     const env = loadEnv(mode, process.cwd(), '')
 
-    console.log('环境变量：：：：', env)
-    console.log('目标浏览器：', env.TARGET || 'chrome')
+    console.log('Environment variables::::', env)
+    console.log('Target browser:', env.TARGET || 'chrome')
 
-    // 验证浏览器参数，默认为chrome
+    // Validate browser parameter, default to chrome
     const validBrowsers = ['chrome', 'firefox', 'edge']
     const targetBrowser = validBrowsers.includes(env.TARGET) ? env.TARGET : 'chrome'
 
@@ -35,20 +35,20 @@ export default defineConfig(({ mode }) => {
             ],
         },
         server: {
-            // 防止ECONNRESET错误
+            // Prevent ECONNRESET errors
             hmr: {
-                overlay: false, // 禁用错误覆盖层
+                overlay: false, // Disable error overlay
                 protocol: 'ws',
                 host: 'localhost'
             },
             watch: {
-                // 减少文件监视频率，降低内存使用
+                // Reduce file watching frequency to lower memory usage
                 usePolling: false,
                 interval: 1000
             }
         },
         build: {
-            // 优化构建配置
+            // Optimize build configuration
             minify: 'esbuild',
             sourcemap: false,
             chunkSizeWarningLimit: 1000
