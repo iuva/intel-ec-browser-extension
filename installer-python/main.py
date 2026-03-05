@@ -726,6 +726,15 @@ def show_admin_warning():
 
 
 def main():
+
+    try:
+        import pyi_splash
+        # 当主窗口初始化完成后，关闭启动动画
+        # 例如，在Tkinter中，可以在root.mainloop()之前调用；在Qt中，可以在窗口show之后调用
+        pyi_splash.close() 
+    except ImportError:
+        pass
+
     # Only check Python version in development environment (not needed after packaging)
     if not hasattr(sys, '_MEIPASS') and sys.version_info < (3, 6):
         print("Python 3.6 or higher required")

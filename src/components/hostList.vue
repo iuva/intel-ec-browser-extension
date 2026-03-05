@@ -61,9 +61,14 @@ const handleItemClick = (item: Record<string, any>, index: number) => {
 const handleConnectClick = (event) => {
   event.stopPropagation() // 阻止事件冒泡
   emits('loading')
+  const hostId = props.hostList[selectedIndex.value].host_rec_id || props.hostList[selectedIndex.value].host_id
 
+  if (!hostId) {
+    error('Please select HOST')
+    return
+  }
   
-  hostInfo({id: props.hostList[selectedIndex.value].host_rec_id || props.hostList[selectedIndex.value].host_id}).then((res) => {
+  hostInfo({id: hostId}).then((res) => {
 
     // @ts-ignore
     const data = res.data
@@ -183,11 +188,15 @@ onUnmounted(() => {
           <!-- User name -->
           <div class="host-list-item-label">{{ item.host_ip }}: {{ item.user_name }}</div>
         </div>
+        <div v-if="hostList.length == 0 && isTc">
+          <div style="color: #9e9e9e;text-align: center;">There are no available hosts for the current tc_id</div>
+        </div>
       </div>
       
       <button 
         class="nav-button up-button" 
         @click="handleConnectClick"
+        v-if="hostList.length > 0"
       >
         Connect Selected Host
       </button>

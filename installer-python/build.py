@@ -33,9 +33,57 @@ def install_pyinstaller():
         return False
 
 
+def build_chrome_extension():
+    """Build Chrome extension before packaging"""
+    print("Building Chrome extension...")
+    
+    # Check if pnpm is available
+    try:
+        subprocess.run(["pnpm", "--version"], capture_output=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("⚠️  pnpm not found, trying npm instead...")
+        # Try npm as fallback
+        try:
+            subprocess.run(["npm", "--version"], capture_output=True, check=True)
+            build_command = ["npm", "run", "build:chrome"]
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print("❌ Neither pnpm nor npm found, please install Node.js package manager")
+            return False
+    else:
+        build_command = ["pnpm", "run", "build:chrome"]
+    
+    # Build Chrome extension
+    try:
+        print(f"Executing: {' '.join(build_command)}")
+        result = subprocess.run(
+            build_command, 
+            cwd=Path(__file__).parent.parent,  # Project root directory
+            capture_output=True, 
+            text=True
+        )
+        
+        if result.returncode == 0:
+            print("✅ Chrome extension build successful")
+            if result.stdout:
+                print("Build output:", result.stdout)
+            return True
+        else:
+            print("❌ Chrome extension build failed")
+            print("Error output:", result.stderr)
+            return False
+            
+    except Exception as e:
+        print(f"❌ Chrome extension build error: {str(e)}")
+        return False
+
+
 def prepare_resources():
     """Prepare resource files"""
     print("Preparing resource files...")
+    
+    # Build Chrome extension first
+    if not build_chrome_extension():
+        print("⚠️  Chrome extension build failed, trying to use existing dist directory...")
     
     # Create temporary directory
     temp_dir = Path("temp")
@@ -85,6 +133,7 @@ def build_installer():
     dist_absolute_path = dist_path.resolve()
     public_absolute_path = Path("../public").resolve()
     setp_absolute_path = Path("setp").resolve()
+    splash_absolute_path = Path("splash.png").resolve()
     
     cmd = [
         sys.executable,
@@ -96,6 +145,8 @@ def build_installer():
         "--add-data", f"{dist_absolute_path}{os.pathsep}dist",
         "--add-data", f"{public_absolute_path}{os.pathsep}public",
         "--add-data", f"{setp_absolute_path}{os.pathsep}setp",  # Add guide step images
+        "--add-data", f"{splash_absolute_path}{os.pathsep}.",
+        "--splash", str(splash_absolute_path),
         "--distpath", "output",
         "--workpath", "build",
         "--specpath", "build",

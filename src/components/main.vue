@@ -154,9 +154,9 @@ const callbacks = ref<CallbackEntity>({})
 const handleMouseDown = (e: MouseEvent) => {
   if (!mainElement.value) return
 
+  startPos.value = { x: e.clientX, y: e.clientY }
   isDragging.value = true
   isMove.value = false
-  startPos.value = { x: e.clientX, y: e.clientY }
 
   // Get current element position
   const transform = getComputedStyle(mainElement.value).transform
@@ -181,11 +181,14 @@ const handleMouseMove = (e: MouseEvent) => {
 
   const dx = e.clientX - startPos.value.x
   const dy = e.clientY - startPos.value.y
+  
 
   if(Math.abs(dx) > dragTolerance.value || Math.abs(dy) > dragTolerance.value){
     isMove.value = true
     mainElement.value.style.left = `auto`
     mainElement.value.style.right = `auto`
+  }else{
+    return;
   }
 
   const rect = mainElement.value.getBoundingClientRect()
@@ -363,18 +366,17 @@ const hostListLoad = () => {
     getAvailableList(listReqInfo.params).then((res) => {
       console.log('Host list', res)
 
+      pageSearch(`TC_ID: ${tcId.value}`)
+      showList.value = true
+
       // @ts-ignore
-      if(hostList.value.length == 0 && res.data.hosts.length > 0){
+      if(hostList.value.length == 0){
         showOfTime(5000)
       }
 
       // @ts-ignore
       hostList.value = [...hostList.value, ...res.data.hosts]
-      
-      if(hostList.value.length > 0){
-        pageSearch(`TC_ID: ${tcId.value}`)
-        showList.value = true
-      }
+    
       
       // @ts-ignore
       if(hostList.value.length >= res.data.total){
@@ -591,7 +593,7 @@ const mainConClass = computed(() => {
     <host-list 
     :host-list="hostList"
     :is-tc="!!tcId"
-    :is-show="isMouseEnter && !isMove && showList && hostList.length > 0"
+    :is-show="isMouseEnter && !isMove && showList"
     v-show="showListAbove"
     @connect="connectHost"
     @loading="pageLoading"
@@ -628,7 +630,7 @@ const mainConClass = computed(() => {
     <host-list 
     :host-list="hostList" 
     :is-tc="!!tcId" 
-    :is-show="isMouseEnter && !isMove && showList && hostList.length > 0"
+    :is-show="isMouseEnter && !isMove && showList"
     v-show="!showListAbove"
     :user-id="userInfo.user.full_name"
     @connect="connectHost"
