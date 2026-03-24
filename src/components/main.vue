@@ -145,6 +145,8 @@ const leftOrRight = ref('right')
 const showListAbove = ref(false)
 // Whether to display host-list
 const showList = ref(false)
+// list Loading
+const loading = ref(false)
 
 // Callback function definition
 const callbacks = ref<CallbackEntity>({})
@@ -356,6 +358,11 @@ const hostListLoad = () => {
   pageLoading()
   // Set to loading state
   if(tcId.value){
+    if(loading.value){
+      return
+    }
+    loading.value = true
+    
     // Load host list
     if(hostList.value.length > 0 && listReqInfo.next){
       // Indicates need to load next page
@@ -384,6 +391,8 @@ const hostListLoad = () => {
       }
     }).catch(err => {
       pageClose('Load failed')
+    }).finally(() => {
+      loading.value = false
     })
 
   } else if(hostList.value.length == 0){

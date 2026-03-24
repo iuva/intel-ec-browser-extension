@@ -37,6 +37,8 @@ const props = defineProps({
 // Single selection index
 const selectedIndex = ref(0)
 
+const btnLoading = ref(false)
+
 // host-list-content element ref
 const hostListContentRef = ref<HTMLElement | null>(null)
 
@@ -67,6 +69,7 @@ const handleConnectClick = (event) => {
     error('Please select HOST')
     return
   }
+  btnLoading.value = true
   
   hostInfo({id: hostId}).then((res) => {
 
@@ -91,10 +94,13 @@ const handleConnectClick = (event) => {
       }).catch((err: Record<string, any>) => {
         error('VNC connection failed', err.message)
         emits('connect', '')
+      }).finally(() => {
+        btnLoading.value = false
       })
   }).catch(() => {
     error('Failed to get VNC information')
     emits('connect', '')
+    btnLoading.value = false
   })
 }
 
@@ -112,6 +118,7 @@ const handleAbortClick = (event) => {
       cancelText: 'Cancel',
       maskClosable: true,
       onConfirm: () => {
+        btnLoading.value = true
         releaseHost({ user_id: props.userId,
           host_list: [
             props.hostList[selectedIndex.value].host_id
@@ -122,6 +129,8 @@ const handleAbortClick = (event) => {
           props.hostList.splice(selectedIndex.value, 1)
         }).catch(() => {
           error('Failed to abandon recovery connection')
+        }).finally(() => {
+          btnLoading.value = false
         })
       }
     })
@@ -196,6 +205,7 @@ onUnmounted(() => {
       <button 
         class="nav-button up-button" 
         @click="handleConnectClick"
+        :disabled="btnLoading"
         v-if="hostList.length > 0"
       >
         Connect Selected Host
@@ -203,6 +213,7 @@ onUnmounted(() => {
       <button 
         class="nav-button down-button" 
         @click="handleAbortClick"
+        :disabled="btnLoading"
         v-show="!isTc"
       >
         Abort Recovery Connection
