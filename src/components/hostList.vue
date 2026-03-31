@@ -71,7 +71,7 @@ const handleConnectClick = (event) => {
   }
   btnLoading.value = true
   
-  hostInfo({id: hostId}).then((res) => {
+  hostInfo({id: hostId, user_id: props.userId}).then((res) => {
 
     // @ts-ignore
     const data = res.data
