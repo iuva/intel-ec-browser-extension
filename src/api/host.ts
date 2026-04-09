@@ -56,7 +56,7 @@ export const hostInfo = (data: Record<any, any>) => proxyFetch(urls.connect, {
 /**
  * Report connection result
  */
-export const reportConnect = (data: Record<any, any>) => proxyFetch(urls.report, {
+export const reportConnect = (data: Record<any, any>) => proxyFetch(urls.connect, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)

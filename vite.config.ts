@@ -15,6 +15,8 @@ function generateManifest() {
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
+    const pkg = readJsonFile("package.json")
+    const appVersion = `V${pkg.version}`
     // Load environment variables
     const env = loadEnv(mode, process.cwd(), '')
 
@@ -26,6 +28,9 @@ export default defineConfig(({ mode }) => {
     const targetBrowser = validBrowsers.includes(env.TARGET) ? env.TARGET : 'chrome'
 
     return {
+        define: {
+            "import.meta.env.VITE_APP_VERSION": JSON.stringify(appVersion),
+        },
         resolve: {
             alias: [
                 {

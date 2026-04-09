@@ -2,6 +2,7 @@
 import browser from "webextension-polyfill";
 
 console.log("Hello from the popup!");
+const appVersion = import.meta.env.VITE_APP_VERSION;
 
 // 测试VNC连接
 const testVncConnection = () => {
@@ -31,7 +32,7 @@ const testVncConnection = () => {
 <template>
   <div class="popup-main" >
     <p>
-      Current Version: 0.0.1
+      Current Version: {{ appVersion }}
     </p>
     
     <!-- 右键菜单 -->

@@ -5,6 +5,8 @@ import { CallbackEntity, MainPosition, MainParam } from '/@/entity/main'
 import HostList from './hostList.vue'
 import { getUserInfo, userAuth } from '/@/api/auth'
 import { getRetryList, getAvailableList, reportConnect } from '/@/api/host'
+import {error, success} from "/@/utils/notification";
+import browser from "webextension-polyfill";
 
 /**
  * Background color: blue(blue), red(warning)
@@ -511,29 +513,61 @@ onMounted(() => {
   })
 })
 
-// Report successful connection
-const connectHost = (hostRecId: string) => {
-  if(!hostRecId){
-    
+const releaseHost = () => {
+  if(hostList.value.length == 0){
+    pageNone()
+    showList.value = false
   }
+}
+
+
+// Report successful connection
+const connectHost = (hostRecId: string, callback?: () => void) => {
   
     const urlParams = new URLSearchParams(window.location.search);
     const cycle = urlParams.get('cycle');
-    const params = {
+    const params = tcId.value ? {
+      id: hostRecId,
       user_id: userInfo.value.user.full_name,
       tc_id: tcId.value,
       cycle_name: cycle,
       user_name: userInfo.value.user.full_name,
-      host_id: hostRecId,
-      connection_status: "success",
-      connection_time: new Date().toLocaleString(),
+    } : {
+      id: hostRecId,
     }
     reportConnect(params).then(res => {
-      console.log('Connection success reported', res)
+
+      // @ts-ignore
+      const data = res.data
+      browser.runtime.sendMessage({
+        type: 'vncConnect',
+        hostInfo: {
+          host: data.ip,
+          port: data.port,
+          password: data.password,
+          username: data.username,
+        }
+      }).then((res: Record<string, any>) => {
+        if (res.success) {
+          success('VNC connection successful')
+        } else {
+          error('VNC connection failed', res.error)
+        }
+      }).catch((err: Record<string, any>) => {
+        error('VNC connection failed', err.message)
+      }).finally(() => {
+        callback && callback()
+      })
+
     }).catch(err => {
-      console.log('Connection report failed', err)
+      error('VNC connection failed', err.message)
+      callback && callback()
     }).finally(() => {
-      pageSearch(`TC_ID: ${tcId.value}`)
+      if(tcId.value){
+        pageSearch(`TC_ID: ${tcId.value}`)
+      }else{
+        pageWarning('Pending connections detected')
+      }
       isMouseEnter.value = false
       if(hostList.value.length > 0){
         showList.value = true
@@ -643,6 +677,7 @@ const mainConClass = computed(() => {
     v-show="!showListAbove"
     :user-id="userInfo.user.full_name"
     @connect="connectHost"
+    @release="releaseHost"
     @scrollToBottom="hostListLoad"
     @loading="pageLoading"
     ></host-list>

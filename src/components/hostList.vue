@@ -1,9 +1,8 @@
 <!-- hostList.vue -->
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { releaseHost, hostInfo } from '/@/api/host'
-import { notify, info, success, warning, error } from '/@/utils/notification'
-import browser from "webextension-polyfill";
+import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { releaseHost } from '/@/api/host'
+import { success, error } from '/@/utils/notification'
 import { showModal } from '../utils/modal'
 
 // Define list item interface
@@ -45,7 +44,8 @@ const hostListContentRef = ref<HTMLElement | null>(null)
 // Define component events
 interface Emits {
   (e: 'itemClick', item: ListItem): void
-  (e: 'connect', hostRecId: string): void
+  (e: 'connect', hostRecId: string, callback?: () => void): void
+  (e: 'release'): void
   (e: 'loading'): void
   (e: 'scrollToBottom'): void // New scroll to bottom event
 }
@@ -69,39 +69,16 @@ const handleConnectClick = (event) => {
     error('Please select HOST')
     return
   }
-  btnLoading.value = true
-  
-  hostInfo({id: hostId, user_id: props.userId}).then((res) => {
 
-    // @ts-ignore
-    const data = res.data
-      browser.runtime.sendMessage({
-          type: 'vncConnect',
-          hostInfo: {
-            host: data.ip,
-            port: data.port,
-            password: data.password,
-            username: data.username,
-          }
-      }).then((res: Record<string, any>) => {
-        if (res.success) {
-          success('VNC connection successful')
-          emits('connect', props.hostList[selectedIndex.value].host_rec_id)
-        } else {
-          emits('connect', '')
-          error('VNC connection failed', res.error)
-        }
-      }).catch((err: Record<string, any>) => {
-        error('VNC connection failed', err.message)
-        emits('connect', '')
-      }).finally(() => {
-        btnLoading.value = false
-      })
-  }).catch(() => {
-    error('Failed to get VNC information')
-    emits('connect', '')
-    btnLoading.value = false
-  })
+
+  btnLoading.value = true
+  emits('connect',
+    hostId,
+    () => {
+      btnLoading.value = false
+    }
+  )
+
 }
 
 // @ts-ignore Abort recovery connection
@@ -127,6 +104,7 @@ const handleAbortClick = (event) => {
           success('Recovery connection abandoned')
           // Remove this host from the list
           props.hostList.splice(selectedIndex.value, 1)
+          emits('release')
         }).catch(() => {
           error('Failed to abandon recovery connection')
         }).finally(() => {
@@ -214,6 +192,7 @@ onUnmounted(() => {
         class="nav-button down-button" 
         @click="handleAbortClick"
         :disabled="btnLoading"
+        v-if="hostList.length > 0"
         v-show="!isTc"
       >
         Abort Recovery Connection
