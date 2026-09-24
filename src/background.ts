@@ -10,7 +10,7 @@ browser.runtime.onInstalled.addListener((details) => {
 // Handle cross-origin requests
 browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.type === 'apiRequest') {
-    console.log('Received cross-origin request:', request.url, request.method, request.body, request.credentials);
+    console.log('Received cross-origin API request:', request.url, request.method);
     
     const fetchOptions: any = {
       method: request.method || 'GET',
@@ -23,7 +23,7 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
       fetchOptions.body = request.body;
     }
     
-    console.log('Sending fetch request:', request.url, fetchOptions);
+    console.log('Sending API fetch request:', request.url, request.method);
     
     fetch(request.url, fetchOptions)
     .then(response => {
@@ -60,7 +60,7 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
      * @param {string} request.hostInfo.scaling - Scaling mode (e.g., Auto)
      */
 
-    console.log('Received vncConnect request:', request);
+    console.log('Received vncConnect request');
     
     // Generate SVN file
     const svnContent = generateSVNFile(request.hostInfo || {});
@@ -97,7 +97,7 @@ async function launchRealVNC(connectionFile = '', svnContent = '') {
       }
     });
     
-    console.log('Received vncConnect request:', connectionFile, svnContent);
+    console.log('Launching RealVNC through native host');
     // Send launch command to native host
     port.postMessage({
       action: 'launch',

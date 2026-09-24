@@ -11,6 +11,12 @@ import shutil
 import subprocess
 from pathlib import Path
 
+# Fix encoding issue on Windows (cp1252 doesn't support emoji/unicode)
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if sys.stderr.encoding != 'utf-8':
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 
 def check_pyinstaller():
     """Check if PyInstaller is installed"""
@@ -36,7 +42,7 @@ def install_pyinstaller():
 def build_chrome_extension():
     """Build Chrome extension before packaging"""
     print("Building Chrome extension...")
-    
+
     # Check if pnpm is available
     try:
         subprocess.run(["pnpm", "--version"], capture_output=True, check=True, shell=True)
@@ -51,15 +57,16 @@ def build_chrome_extension():
             return False
     else:
         build_command = ["pnpm", "run", "build:chrome"]
-    
+
     # Build Chrome extension
     try:
         print(f"Executing: {' '.join(build_command)}")
         result = subprocess.run(
-            build_command, 
+            build_command,
             cwd=Path(__file__).parent.parent,  # Project root directory
-            capture_output=True, 
-            text=True
+            capture_output=True,
+            text=True,
+            shell=True
         )
         
         if result.returncode == 0:

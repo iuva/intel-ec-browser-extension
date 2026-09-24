@@ -60,12 +60,17 @@ export default defineConfig(({ mode }) => {
             // Content script 无法引用相对资源路径，小图标资源需内联为 data URL（默认 4096 仅够小图）
             assetsInlineLimit: 20480,
         },
+        test: {
+            environment: 'jsdom',
+            include: ['src/**/*.spec.ts']
+        },
         plugins: [
             vue(),
             webExtension({
                 manifest: generateManifest,
                 watchFilePaths: ["package.json", "manifest.json"],
-                browser: targetBrowser
+                browser: targetBrowser,
+                skipManifestValidation: true
             }),
         ],
     }
