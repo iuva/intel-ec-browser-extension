@@ -25,7 +25,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://hsdes.intel.com/*", "*://hsdes-pre.intel.com/*"],
+      "matches": ["*://hsdes.intel.com/*", "*://hsdes-pre.intel.com/*", "<all_urls>"],
       "js": ["src/content.ts"],
       "all_frames": true
     }

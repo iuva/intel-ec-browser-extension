@@ -56,7 +56,9 @@ export default defineConfig(({ mode }) => {
             // Optimize build configuration
             minify: 'esbuild',
             sourcemap: false,
-            chunkSizeWarningLimit: 1000
+            chunkSizeWarningLimit: 1000,
+            // Content script 无法引用相对资源路径，小图标资源需内联为 data URL（默认 4096 仅够小图）
+            assetsInlineLimit: 20480,
         },
         plugins: [
             vue(),

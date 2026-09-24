@@ -39,12 +39,12 @@ def build_chrome_extension():
     
     # Check if pnpm is available
     try:
-        subprocess.run(["pnpm", "--version"], capture_output=True, check=True)
+        subprocess.run(["pnpm", "--version"], capture_output=True, check=True, shell=True)
     except (subprocess.CalledProcessError, FileNotFoundError):
         print("⚠️  pnpm not found, trying npm instead...")
         # Try npm as fallback
         try:
-            subprocess.run(["npm", "--version"], capture_output=True, check=True)
+            subprocess.run(["npm", "--version"], capture_output=True, check=True, shell=True)
             build_command = ["npm", "run", "build:chrome"]
         except (subprocess.CalledProcessError, FileNotFoundError):
             print("❌ Neither pnpm nor npm found, please install Node.js package manager")

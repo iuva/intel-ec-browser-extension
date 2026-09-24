@@ -1,5 +1,5 @@
 // content.ts
-import Main from './components/main.vue'
+import Main from './pages/Main.vue'
 import { createApp } from 'vue'
 
 // Create a div element to mount the Vue application
