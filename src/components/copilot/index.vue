@@ -4,6 +4,7 @@ import { provide, ref, watch, onUnmounted } from 'vue'
 import TabHost from './tabHost.vue'
 import TabTest from './tabTest.vue'
 import TabQuery from './tabQuery.vue'
+import StateCard from './stateCard.vue'
 import type { HostOccupyItem } from './tabHost.vue'
 import type { TestHostItem } from './tabTest.vue'
 import type { QueryHostItem } from './tabQuery.vue'
@@ -14,7 +15,7 @@ import {
   type PanelResultOptions,
   type CopilotTab,
 } from './context'
-import { imgLogo, imgCancelTest, imgRemoteConnect, imgSuccess, imgFail } from './images'
+import { imgLogo, imgCancelTest, imgRemoteConnect, imgSuccess, imgFail, imgSearchAvatar, imgNoUser } from './images'
 
 /**
  * xCopilot 插件面板外壳（样式还原自 prototype/browser-plugin-prototype.html 的 .plugin-panel）。
@@ -27,6 +28,9 @@ import { imgLogo, imgCancelTest, imgRemoteConnect, imgSuccess, imgFail } from '.
  * - onShow   面板显示回调（open() 触发）
  * - onClose  面板关闭回调（关闭按钮 / close() 触发）
  * - state    状态（预留）
+ * - userState 统一用户状态（三页签共享）：0 识别中 / 1 用户信息获取失败 / 2 成功（默认）。
+ *            非 2 时各页签内容统一替换为状态卡（识别中仅 Let's Test 展示 TC_ID 相关文描；
+ *            失败态 Retry 回调 retry-user-info 事件），成功后页签自身功能才可用。
  *
  * 组件方法（defineExpose）：
  * - open() / close()              显示与关闭面板
@@ -40,12 +44,14 @@ const props = withDefaults(defineProps<{
   onShow?: () => void
   onClose?: () => void
   state?: string
+  userState?: 0 | 1 | 2
 }>(), {
   position: 'right',
   user: '',
   onShow: undefined,
   onClose: undefined,
   state: '',
+  userState: 2,
 })
 
 const show = defineModel('show', {type: Boolean, default: false})
@@ -58,6 +64,7 @@ const emit = defineEmits<{
   (e: 'tc-change', tcId: string | null): void
   (e: 'search', requirement: string): void
   (e: 'host-open', host: QueryHostItem): void
+  (e: 'retry-user-info'): void
 }>()
 
 const activeTab = ref<CopilotTab>('occupied')
@@ -219,7 +226,7 @@ defineExpose({
   <aside
     class="cpu-copilot-panel"
     :class="{ 'is-open': show, 'is-left': position === 'left' }"
-    :aria-hidden="String(!show)"
+    :aria-hidden="!show"
   >
     <header class="panel-header">
       <div class="panel-header-left">
@@ -247,34 +254,57 @@ defineExpose({
             :class="{ active: activeTab === 'available' }"
             @click="switchTab('available')"
           >Let's Test</button>
-          <button
+          <!-- Direct Mode 页签暂时隐藏；恢复时取消注释，并将 .tabs-inner 滑块宽度改回三等分 -->
+          <!-- <button
             type="button"
             class="tab"
             :class="{ active: activeTab === 'query' }"
             @click="switchTab('query')"
-          >Direct Mode</button>
+          >Direct Mode</button> -->
         </div>
       </nav>
 
-      <!-- 页签内容：切换即重建组件（与原型状态机复位行为一致；挂载时序保证顶栏联动文案正确） -->
-      <TabHost
-        v-if="activeTab === 'occupied'"
-        @count-change="occupiedCount = $event"
-        @release="(item) => emit('release', item)"
-        @remote="(item) => emit('remote', item)"
-      />
-      <TabTest
-        v-else-if="activeTab === 'available'"
-        @user-hint="onUserHint"
-        @tc-change="(tcId) => emit('tc-change', tcId)"
-        @start-test="(host) => emit('start-test', host)"
-        @remote="(host) => emit('remote', host)"
-      />
-      <TabQuery
-        v-else
-        @search="(requirement) => emit('search', requirement)"
-        @host-open="(host) => emit('host-open', host)"
-      />
+      <!-- 统一用户状态门控：识别中/获取失败时三页签内容统一为状态卡（切换页签仅改变文描），成功后才挂载对应页签 -->
+      <template v-if="userState !== 2">
+        <!-- 识别中：等待用户信息与 TC_ID（仅 Let's Test 保留 TC_ID 相关文描） -->
+        <StateCard
+          v-if="userState === 0"
+          :img="imgSearchAvatar"
+          title="Loading user info"
+          :reason="'Obtaining user information from PHOENIX'"
+          scan
+        />
+        <!-- 用户信息获取失败：Retry 转发给父级（Main.loadUserInfo） -->
+        <StateCard
+          v-else
+          :img="imgNoUser"
+          title="Could not get user info"
+          reason="Auth API failed, or no user info from PHOENIX"
+          btn-text="Retry"
+          @action="emit('retry-user-info')"
+        />
+      </template>
+      <template v-else>
+        <!-- 页签内容：切换即重建组件（与原型状态机复位行为一致；挂载时序保证顶栏联动文案正确） -->
+        <TabHost
+          v-if="activeTab === 'occupied'"
+          @count-change="occupiedCount = $event"
+          @release="(item) => emit('release', item)"
+          @remote="(item) => emit('remote', item)"
+        />
+        <TabTest
+          v-else-if="activeTab === 'available'"
+          @user-hint="onUserHint"
+          @tc-change="(tcId) => emit('tc-change', tcId)"
+          @start-test="(host) => emit('start-test', host)"
+          @remote="(host) => emit('remote', host)"
+        />
+        <TabQuery
+          v-else
+          @search="(requirement) => emit('search', requirement)"
+          @host-open="(host) => emit('host-open', host)"
+        />
+      </template>
     </div>
 
     <!-- 面板内确认弹窗 -->
@@ -483,13 +513,13 @@ defineExpose({
   padding: 0.356vh;
   width: 100%;
 
-  /* 滑块 */
+  /* 滑块（Direct Mode 暂时隐藏，按两页签等分；恢复三页签时改回 33.3333%） */
   &::before {
     content: '';
     position: absolute;
     top: 0.356vh;
     left: 0.356vh;
-    width: calc(33.3333% - 0.356vh);
+    width: calc(50% - 0.356vh);
     height: calc(100% - 0.711vh);
     background: #ffffff;
     border-radius: 0.8vh;
