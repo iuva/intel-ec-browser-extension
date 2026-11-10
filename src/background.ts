@@ -3,12 +3,33 @@ const NATIVE_HOST_NAME = 'com.realvnc.vncviewer';
 
 console.log("Hello from the background!");
 
+// 快捷键（Alt+Shift+Z，macOS Command+Shift+Z）切换当前页面的 Copilot 面板
+// 使用 commands 而非页面 keydown，浏览器地址栏获得焦点时同样生效
+browser.commands.onCommand.addListener(async (command) => {
+  if (command !== 'toggle-copilot') return;
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) return;
+  try {
+    await browser.tabs.sendMessage(tab.id, { type: 'toggleCopilot' }, { frameId: 0 });
+  } catch {
+    // 页面未注入内容脚本（如浏览器内置页面）时忽略
+  }
+});
+
 browser.runtime.onInstalled.addListener((details) => {
   console.log("Extension installed:", details);
 });
 
 // Handle cross-origin requests
 browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  // 内容脚本启动时询问快捷键是否已被浏览器成功注册（空字符串表示未注册）
+  if (request.type === 'getToggleShortcut') {
+    return browser.commands.getAll().then((commands) => {
+      const command = commands.find((item) => item.name === 'toggle-copilot');
+      return { shortcut: command?.shortcut || '' };
+    });
+  }
+
   if (request.type === 'apiRequest') {
     console.log('Received cross-origin API request:', request.url, request.method);
     

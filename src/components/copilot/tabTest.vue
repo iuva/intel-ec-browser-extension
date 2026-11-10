@@ -1,8 +1,13 @@
 <!-- tabTest.vue -->
 <script setup lang="ts">
-import { computed, inject, onMounted, ref } from 'vue'
+import { computed, inject, onUnmounted, ref, watch } from 'vue'
 import StateCard from './stateCard.vue'
-import { PANEL_API_KEY, type PanelApi } from './context'
+import {
+  PANEL_API_KEY,
+  type CopilotAvailableHost,
+  type HostStatusStats,
+  type PanelApi,
+} from './context'
 import { imgSearchAvatar, imgTcNotDetected, imgNoUser, imgTimeout, imgNoMatch } from './images'
 
 /**
@@ -10,46 +15,42 @@ import { imgSearchAvatar, imgTcNotDetected, imgNoUser, imgTimeout, imgNoMatch } 
  * idle 等待选中 TC_ID → selected 加载成功 / loading 加载中 / timeout 加载失败 / no-match 无匹配
  * → tc-not-detected TC_ID 未检测到 / no-user 用户信息获取失败。
  *
+ * 入参：
+ * - tcId 当前选中的 TC_ID（由面板外壳在可见时下发）；非空即加载对应 HOST 列表
+ *
  * 回调事件：
  * - user-hint 顶栏用户文案联动（idle/no-user 态提示，其余态回传 null 还原用户邮箱）
- * - tc-change 选中 TC_ID 变化（业务接入点）
- * - start-test Start Test 确认后触发（业务接入点）
- * - remote Remote 确认后触发（业务接入点）
+ *
+ * 数据来源：getAvailableList（游标分页 + 滚动到底自动加载）。
  */
-export interface TestHostItem {
-  host: string
-  status: 'Free' | 'Occupied' | 'Running' | 'Offline'
-  occupyTime?: string
-  occupier?: string
-  duration?: string
-}
+type TestHostItem = CopilotAvailableHost
+
+const PAGE_SIZE = 50
+
+const props = withDefaults(defineProps<{
+  tcId?: string | null
+}>(), {
+  tcId: null,
+})
 
 const emit = defineEmits<{
   (e: 'user-hint', hint: string | null): void
-  (e: 'tc-change', tcId: string | null): void
-  (e: 'start-test', host: TestHostItem): void
-  (e: 'remote', host: TestHostItem): void
 }>()
 
 const panel = inject<PanelApi | null>(PANEL_API_KEY, null)
 
 type TestState = 'idle' | 'selected' | 'loading' | 'timeout' | 'no-match' | 'tc-not-detected' | 'no-user'
 
-/** 原型演示数据（tcList / testHostsData） */
-const DEMO_TC_ID = '15014591568'
-const demoHosts: TestHostItem[] = [
-  { host: 'jwan150-mobl', status: 'Occupied', occupyTime: '2026-08-25 09:12', occupier: 'zhang.wei@intel.com', duration: '2h 30m' },
-  { host: 'jwan151-mobl', status: 'Free' },
-  { host: 'jwan152-mobl', status: 'Running', occupyTime: '2026-08-25 08:00', occupier: 'li.na@intel.com', duration: '3h 42m' },
-  { host: 'jwan153-mobl', status: 'Free' },
-  { host: 'jwan154-mobl', status: 'Occupied', occupyTime: '2026-08-24 20:15', occupier: 'wang.fang@intel.com', duration: '15h 27m' },
-  { host: 'jwan155-mobl', status: 'Offline' },
-  { host: 'jwan156-mobl', status: 'Free' },
-]
-
 const state = ref<TestState>('idle')
 const selectedTcId = ref<string | null>(null)
 const hosts = ref<TestHostItem[]>([])
+const total = ref(0)
+const nextCursor = ref<string | null>(null)
+const stats = ref<HostStatusStats>({ Free: 0, Occupied: 0, Running: 0, Offline: 0 })
+const loadingMore = ref(false)
+const hasMore = computed(() => !!nextCursor.value && hosts.value.length < total.value)
+
+let requestSeq = 0
 
 /** 搜索条件（原型 hostQuery） */
 const searchName = ref('')
@@ -65,20 +66,11 @@ const STATUS_OPTIONS: Array<{ value: 'all' | TestHostItem['status']; label: stri
   { value: 'Offline', label: 'Offline' },
 ]
 
-/** 状态统计（仅 selected 态展示，原型 buildSelectedLayout） */
-const stats = computed(() => {
-  const s = { Free: 0, Occupied: 0, Running: 0, Offline: 0 }
-  hosts.value.forEach((h) => {
-    if (h.status in s) s[h.status]++
-  })
-  return s
-})
-
 /** 过滤后的 HOST 列表（原型 getFilteredHosts） */
 const filteredHosts = computed(() => {
   const kw = searchName.value.trim().toLowerCase()
   return hosts.value.filter((h) => {
-    const nameOk = !kw || h.host.toLowerCase().includes(kw)
+    const nameOk = !kw || h.host_name.toLowerCase().includes(kw)
     const statusOk = searchStatus.value === 'all' || h.status === searchStatus.value
     return nameOk && statusOk
   })
@@ -86,15 +78,9 @@ const filteredHosts = computed(() => {
 
 const setUserHint = (hint: string | null) => emit('user-hint', hint)
 
-/** 原型 setDemoState：携带选中 tc 的状态集群 */
+/** 原型 setDemoState：状态切换与顶栏提示（TC_ID 由入参驱动） */
 const setState = (next: TestState) => {
   state.value = next
-  const checkedStates: TestState[] = ['selected', 'loading', 'timeout', 'no-match']
-  if (checkedStates.includes(next)) {
-    selectedTcId.value = DEMO_TC_ID
-  } else if (next === 'idle') {
-    selectedTcId.value = null
-  }
   setUserHint(next === 'no-user'
     ? 'User info unreadable · click to Retry'
     : next === 'idle'
@@ -102,23 +88,93 @@ const setState = (next: TestState) => {
       : null)
 }
 
-onMounted(() => setState('idle'))
+const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e || 'Unknown error'))
 
-/** 原型 demo：进入已选中态（真实场景由 TC_ID 检测驱动，此处作为 Retry 入口） */
-const loadHostList = (tcId: string) => {
-  hosts.value = demoHosts
-  selectedTcId.value = tcId
-  emit('tc-change', tcId)
-  setState('loading')
-  window.setTimeout(() => setState('selected'), 1500)
+const fetchPage = async (tcId: string, cursor: string | null) => {
+  const page = await panel?.fetchAvailableHosts({ tcId, cursor, pageSize: PAGE_SIZE })
+  if (!page) throw new Error('Panel API unavailable')
+  return page
 }
+
+/** 按 TC_ID 加载 HOST 列表：首屏重置并写入接口 stats */
+const loadHostList = async (tcId: string) => {
+  const seq = ++requestSeq
+  selectedTcId.value = tcId
+  hosts.value = []
+  total.value = 0
+  nextCursor.value = null
+  setState('loading')
+  try {
+    const page = await fetchPage(tcId, null)
+    if (seq !== requestSeq) return
+    hosts.value = page.list
+    total.value = page.total
+    nextCursor.value = page.next_cursor
+    stats.value = page.stats
+    setState(page.list.length > 0 ? 'selected' : 'no-match')
+  } catch {
+    if (seq !== requestSeq) return
+    setState('timeout')
+  }
+}
+
+/** 追加下一页；失败保留游标，下次滚动自动重试 */
+const loadMore = async () => {
+  if (state.value !== 'selected' || !hasMore.value || loadingMore.value || !selectedTcId.value) return
+  const seq = requestSeq
+  loadingMore.value = true
+  try {
+    const page = await fetchPage(selectedTcId.value, nextCursor.value)
+    if (seq !== requestSeq) return
+    hosts.value.push(...page.list)
+    total.value = page.total
+    nextCursor.value = page.next_cursor
+    stats.value = page.stats
+  } catch {
+    // 保留游标，等待下次滚动重试
+  } finally {
+    if (seq === requestSeq) loadingMore.value = false
+  }
+}
+
+const onScroll = (e: Event) => {
+  const el = e.target as HTMLElement
+  if (el.scrollHeight - el.scrollTop - el.clientHeight <= 24) loadMore()
+}
+
+/** 入参 TC_ID 驱动：非空加载列表，为空进入「TC not detected」 */
+watch(() => props.tcId, (tcId) => {
+  if (tcId) {
+    void loadHostList(tcId)
+    return
+  }
+  requestSeq++
+  selectedTcId.value = null
+  hosts.value = []
+  total.value = 0
+  nextCursor.value = null
+  setState('tc-not-detected')
+}, { immediate: true })
+
+onUnmounted(() => {
+  requestSeq++
+})
 
 const retryLoad = () => {
-  setState('loading')
-  window.setTimeout(() => setState('selected'), 1500)
+  if (props.tcId) {
+    void loadHostList(props.tcId)
+    return
+  }
+  setState('tc-not-detected')
 }
 
-const retrySearchTc = () => setState('idle')
+const retrySearchTc = () => {
+  if (props.tcId) {
+    void loadHostList(props.tcId)
+    return
+  }
+  setState('idle')
+}
 const retryUser = () => setState('idle')
 
 /** 搜索（原型 applyQuery）：列表区域 loading 1.5s 后刷新结果 */
@@ -129,44 +185,80 @@ const applyQuery = () => {
   }, 1500)
 }
 
-const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`)
-const formatNow = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-/** Start Test（原型 bindOccupyButtons）：确认后占用 HOST 并刷新列表 */
+/** Start Test：确认后建立连接并拉起 RealVNC，成功后刷新列表 */
 const onStartTest = async (host: TestHostItem) => {
   const ok = await panel?.confirm({
     title: 'Start Test',
-    message: `Start test on "${host.host}"? It will be occupied for the current test task.`,
+    message: `Start test on "${host.host_name}"? It will be occupied for the current test task.`,
     confirmText: 'Start',
     type: 'info',
   })
   if (!ok) return
-  host.status = 'Occupied'
-  host.occupyTime = formatNow()
-  host.occupier = 'me@intel.com'
-  host.duration = '0h 0m'
-  emit('start-test', host)
+
+  panel?.showLoading(`Starting test on "${host.host_name}"…`)
+  try {
+    await panel?.connectHost({
+      hostId: host.host_id,
+      hostRecId: host.host_rec_id,
+      host: host.host_name,
+      tcId: selectedTcId.value,
+    })
+    panel?.showResult({
+      success: true,
+      title: 'Test started',
+      message: `RealVNC is connecting to "${host.host_name}".`,
+      autoClose: 4000,
+    })
+    if (selectedTcId.value) await loadHostList(selectedTcId.value)
+  } catch (e) {
+    panel?.showResult({
+      success: false,
+      title: 'Start test failed',
+      message: errorMessage(e),
+      actions: [{ text: 'Close', action: 'close', style: 'cancel' }],
+    })
+  }
 }
 
-/** Remote（原型 bindRemoteButtons） */
+/** Remote：确认后建立连接并拉起 RealVNC */
 const onRemote = async (host: TestHostItem) => {
   const ok = await panel?.confirm({
     title: 'Connect',
-    message: `Connect to "${host.host}" via RealVNC?`,
+    message: `Connect to "${host.host_name}" via RealVNC?`,
     confirmText: 'Connect',
     type: 'info',
   })
-  if (ok) emit('remote', host)
+  if (!ok) return
+
+  panel?.showLoading(`Connecting to "${host.host_name}"…`)
+  try {
+    await panel?.connectHost({
+      hostId: host.host_id,
+      hostRecId: host.host_rec_id,
+      host: host.host_name,
+      tcId: selectedTcId.value,
+    })
+    panel?.showResult({
+      success: true,
+      title: 'VNC connected',
+      message: `RealVNC is connecting to "${host.host_name}".`,
+      autoClose: 4000,
+    })
+    if (selectedTcId.value) await loadHostList(selectedTcId.value)
+  } catch (e) {
+    panel?.showResult({
+      success: false,
+      title: 'Connect failed',
+      message: errorMessage(e),
+      actions: [{ text: 'Close', action: 'close', style: 'cancel' }],
+    })
+  }
 }
 
 /**
  * 状态机控制（预留业务接入）：
  * - setState(next) 直接切换状态
  * - loadHostList(tcId) 以指定 TC_ID 进入「加载中 → 列表」流程
- * 真实场景：由 TC_ID / 用户信息检测驱动，替代原型左侧调试面板。
  */
 defineExpose({
   setState,
@@ -254,13 +346,13 @@ defineExpose({
           <button type="button" class="test-search-btn" @click="applyQuery">Search</button>
         </div>
 
-        <div class="test-host-list">
+        <div class="test-host-list" @scroll.passive="onScroll">
           <!-- 状态4：加载失败 -->
           <StateCard
             v-if="state === 'timeout'"
             :img="imgTimeout"
             title="Load failed"
-            reason="HOST list API (GET /api/test/hosts) timed out or errored. Check network & retry"
+            reason="HOST list API failed. Check network & retry"
             btn-text="Retry"
             @action="retryLoad"
           />
@@ -289,11 +381,11 @@ defineExpose({
             />
             <div
               v-for="host in filteredHosts"
-              :key="host.host"
+              :key="host.host_id"
               class="test-host-card"
             >
               <div class="test-host-card-header">
-                <span class="test-host-name">{{ host.host }}</span>
+                <span class="test-host-name">{{ host.host_name }}</span>
                 <span class="test-host-status" :class="`is-${host.status.toLowerCase()}`">{{ host.status }}</span>
               </div>
               <div class="test-host-fields">
@@ -303,15 +395,15 @@ defineExpose({
                 </div>
                 <div class="test-host-field">
                   <span class="test-host-field-label">Used Time</span>
-                  <span class="test-host-field-value">{{ host.occupyTime || '--' }}</span>
+                  <span class="test-host-field-value">{{ host.occupy_time || '--' }}</span>
                 </div>
                 <div class="test-host-field">
                   <span class="test-host-field-label">Occupy Dur</span>
-                  <span class="test-host-field-value">{{ host.duration || '--' }}</span>
+                  <span class="test-host-field-value">{{ host.occupy_duration || '--' }}</span>
                 </div>
               </div>
-              <!-- 演示 HOST（jwan152-mobl）：Remote 按钮 -->
-              <div v-if="host.host === 'jwan152-mobl'" class="test-host-footer">
+              <!-- Running：Remote 按钮 -->
+              <div v-if="host.status === 'Running'" class="test-host-footer">
                 <button type="button" class="btn-remote" @click="onRemote(host)">Remote</button>
               </div>
               <!-- Free/Offline：Start Test 按钮（Offline 禁用） -->
@@ -327,6 +419,13 @@ defineExpose({
                   @click="onStartTest(host)"
                 >Start Test</button>
               </div>
+            </div>
+            <div v-if="filteredHosts.length > 0 && (loadingMore || !hasMore)" class="list-footer">
+              <template v-if="loadingMore">
+                <span class="footer-spinner"></span>
+                <span>Loading more…</span>
+              </template>
+              <template v-else>All HOSTs loaded</template>
             </div>
           </template>
         </div>
@@ -526,6 +625,26 @@ defineExpose({
   &::-webkit-scrollbar-thumb:hover {
     background: #9ca3af;
   }
+}
+
+/* 无限滚动底部状态（Loading more… / All HOSTs loaded） */
+.list-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.711vh;
+  padding: 1.067vh 0 0.356vh;
+  color: #9ca3af;
+  font-size: 1.12vh;
+}
+
+.footer-spinner {
+  width: 1.6vh;
+  height: 1.6vh;
+  border: 0.178vh solid #e5e9ef;
+  border-top-color: #447dbc;
+  border-radius: 50%;
+  animation: cpu-spinner-rotate 0.8s linear infinite;
 }
 
 /* HOST 卡片（原型 .test-host-card） */

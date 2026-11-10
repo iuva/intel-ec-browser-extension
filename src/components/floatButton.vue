@@ -1,6 +1,7 @@
 <!-- floatButton.vue -->
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { DEFAULT_FLOAT_BUTTON_TOOLTIP, type FloatButtonApi } from './floatButtonContext'
 // 默认图标：原型悬浮按钮 logo（已复制至 src/img/logo.png，构建时内联为 data URL）
 import defaultIcon from '/@/img/logo.png'
 
@@ -12,15 +13,22 @@ import defaultIcon from '/@/img/logo.png'
  * 过渡完成左右吸附，全程无布局抖动，拖拽与吸附丝滑。
  *
  * 入参（props）：
- * - tooltip   tooltip 文本内容（悬浮在按钮背对屏幕边缘的一侧）
  * - icon      按钮图标图片地址（对应原型 logo）
  * - onClick   点击回调（拖拽位移超过容差后松手不会触发 click）
  * - onDrag    拖拽回调，拖拽过程中每帧回调 { x, y, side }
  * - onDragEnd 拖拽结束回调，松手后回调吸附结果 { x, y, side }
  *
+ * tooltip：文案、展示时机、计时与中断规则全部内聚在组件内部，默认 "Open panel"。
+ * 组件方法（defineExpose，经 Main.vue 接线后通过 provide/inject 下发给子树）：
+ * - updateTooltip(text)                  更新文案，空内容清空自定义文案并回落默认
+ * - showTooltip(ms, text?, clearAfter?)  临时展示；text 可空（沿用当前文案），
+ *                                        clearAfter 为 true 时展示完毕清空文案
+ * - resetTooltip(waitForEnd?, interrupt?) 重置文案；waitForEnd 默认 true（当前展示结束后清空），
+ *                                        interrupt 为 true 时立即中断展示并清空
+ *
  * 使用示例：
  * <FloatButton
- *   tooltip="Open panel"
+ *   ref="floatButtonRef"
  *   icon="/@/img/logo.png"
  *   :on-click="openPanel"
  *   :on-drag="onDragging"
@@ -34,13 +42,11 @@ interface FloatButtonPosition {
 }
 
 const props = withDefaults(defineProps<{
-  tooltip?: string
   icon?: string
   onClick?: (event: MouseEvent) => void
   onDrag?: (position: FloatButtonPosition) => void
   onDragEnd?: (position: FloatButtonPosition) => void
 }>(), {
-  tooltip: '',
   icon: defaultIcon,
   onClick: undefined,
   onDrag: undefined,
@@ -59,6 +65,69 @@ const btnEl = ref<HTMLButtonElement | null>(null)
 const dragging = ref(false)
 /** 当前贴边侧（决定 tooltip 弹出方向） */
 const side = ref<'left' | 'right'>('right')
+
+// ===== tooltip 内部状态（唯一写入口为下方三个组件方法） =====
+/** 自定义 tooltip 文案；空串表示未设置 */
+const tooltipText = ref('')
+/** 实际展示文案：自定义文案优先，空时回落默认文案 */
+const tooltipDisplayText = computed(() => tooltipText.value || DEFAULT_FLOAT_BUTTON_TOOLTIP)
+/** 是否处于 API 触发的临时展示态 */
+const tooltipForced = ref(false)
+let tooltipTimer = 0
+/** 是否已请求在本次展示结束后清空文案（resetTooltip 等待模式） */
+let pendingClear = false
+
+/** 更新 tooltip 文案；空内容清空自定义文案（展示回落默认文案） */
+const updateTooltip = (text?: string | null): void => {
+  pendingClear = false
+  tooltipText.value = text && text.trim() ? text : ''
+}
+
+/**
+ * 临时展示 tooltip；重复调用重置计时。
+ * text 非空时同步更新文案；clearAfter 为 true 时展示结束清空自定义文案。
+ */
+const showTooltip = (duration: number, text?: string | null, clearAfter = false): void => {
+  window.clearTimeout(tooltipTimer)
+  pendingClear = false
+  if (text && text.trim()) tooltipText.value = text
+  if (!Number.isFinite(duration) || duration <= 0) {
+    tooltipForced.value = false
+    if (clearAfter) tooltipText.value = ''
+    return
+  }
+  tooltipForced.value = true
+  tooltipTimer = window.setTimeout(() => {
+    tooltipForced.value = false
+    if (clearAfter || pendingClear) tooltipText.value = ''
+    pendingClear = false
+  }, duration)
+}
+
+/**
+ * 重置 tooltip：清空自定义文案（展示回落默认文案）。
+ * waitForEnd 默认 true，临时展示中则在展示结束后清空；false 时立即清空文案。
+ * interrupt 为 true 时立即中断临时展示并清空。
+ */
+const resetTooltip = (waitForEnd = true, interrupt = false): void => {
+  if (interrupt) {
+    window.clearTimeout(tooltipTimer)
+    tooltipForced.value = false
+    pendingClear = false
+    tooltipText.value = ''
+    return
+  }
+  // 无临时展示，或要求立即清空
+  if (!tooltipForced.value || !waitForEnd) {
+    pendingClear = false
+    tooltipText.value = ''
+    return
+  }
+  // 展示中且等待结束：标记计时结束时清空
+  pendingClear = true
+}
+
+defineExpose<FloatButtonApi>({ updateTooltip, showTooltip, resetTooltip })
 
 // ===== 非响应式拖拽状态（热路径完全绕开 Vue 响应式系统） =====
 let x = 0                 // 当前位置 x（px）
@@ -274,6 +343,7 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
   if (frame) cancelAnimationFrame(frame)
   clearTimeout(snapTimer)
+  window.clearTimeout(tooltipTimer)
 })
 </script>
 
@@ -282,8 +352,8 @@ onUnmounted(() => {
     ref="btnEl"
     type="button"
     class="cpu-float-button"
-    :class="{ 'is-dragging': dragging, 'is-left': side === 'left' }"
-    :aria-label="tooltip || 'float button'"
+    :class="{ 'is-dragging': dragging, 'is-left': side === 'left', 'is-tooltip-forced': tooltipForced }"
+    :aria-label="tooltipDisplayText || 'float button'"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
     @pointerup="endDrag"
@@ -291,9 +361,9 @@ onUnmounted(() => {
     @click="handleClick"
   >
     <span class="cpu-float-button-inner">
-      <img v-if="icon" :src="icon" :alt="tooltip" draggable="false" />
+      <img v-if="icon" :src="icon" :alt="tooltipDisplayText" draggable="false" />
     </span>
-    <span v-if="tooltip" class="cpu-float-button-tooltip">{{ tooltip }}</span>
+    <span v-if="tooltipDisplayText" class="cpu-float-button-tooltip">{{ tooltipDisplayText }}</span>
   </button>
 </template>
 
@@ -422,6 +492,11 @@ onUnmounted(() => {
   /* 仅未拖拽时悬停才显示 tooltip（拖拽中 :hover 必然命中，必须排除，
      否则该规则会覆盖 .is-dragging 里的 opacity: 0） */
   &:not(.is-dragging):hover .cpu-float-button-tooltip {
+    opacity: 1;
+  }
+
+  /* API 临时展示：强制显示；拖拽中仍由 .is-dragging 规则隐藏 */
+  &:not(.is-dragging).is-tooltip-forced .cpu-float-button-tooltip {
     opacity: 1;
   }
 }

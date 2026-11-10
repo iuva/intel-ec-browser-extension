@@ -1,110 +1,171 @@
 <!-- tabHost.vue -->
 <script setup lang="ts">
-import { inject, ref, watch } from 'vue'
+import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
 import StateCard from './stateCard.vue'
-import { PANEL_API_KEY, type PanelApi } from './context'
-import { imgNoHost } from './images'
+import { PANEL_API_KEY, type CopilotOccupiedHost, type PanelApi } from './context'
+import { imgNoHost, imgTimeout } from './images'
 
 /**
  * 「My HOST」页签（原型 data-tab="occupied"）：
  * 已占用 HOST 任务卡片列表 + 取消测试 / Remote 操作。
- * 状态：has-data（有占用）| no-data（无占用，空态卡）。
- *
- * 入参：
- * - hosts 已占用 HOST 列表（不传时使用原型演示数据）
- * 回调事件：
- * - release 取消测试确认后触发（业务接入点）
- * - remote  Remote 确认后触发（业务接入点）
- * - count-change 占用数量变化（供外壳 tab 徽标使用）
+ * 数据来自 getRetryList（游标分页 + 滚动到底自动加载）。
  */
-export interface HostOccupyItem {
-  tcid: string
-  host: string
-  status: 'Occupied' | 'Running'
-  /** Last Time */
-  time: string
-  /** Occupy Dur */
-  duration: string
-  /** Used Time */
-  occupyTime: string
-}
+type HostOccupyItem = CopilotOccupiedHost
 
-const props = withDefaults(defineProps<{
-  hosts?: HostOccupyItem[]
-}>(), {
-  hosts: undefined,
-})
+const PAGE_SIZE = 50
 
 const emit = defineEmits<{
-  (e: 'release', item: HostOccupyItem): void
-  (e: 'remote', item: HostOccupyItem): void
   (e: 'count-change', count: number): void
 }>()
 
 const panel = inject<PanelApi | null>(PANEL_API_KEY, null)
 
-/** 原型演示数据（occupiedHosts） */
-const demoHosts: HostOccupyItem[] = [
-  { tcid: '15014591568', host: 'jwan160-mobl', status: 'Occupied', time: '2026-08-24 10:30', duration: '2h 15m', occupyTime: '2026-08-24 08:15' },
-  { tcid: '15014591569', host: 'jwan161-mobl', status: 'Running', time: '2026-08-24 11:45', duration: '1h 05m', occupyTime: '2026-08-24 10:40' },
-  { tcid: '15014591570', host: 'jwan162-mobl', status: 'Occupied', time: '2026-08-23 18:20', duration: '5h 40m', occupyTime: '2026-08-23 12:40' },
-  { tcid: '15014591581', host: 'jwan163-mobl', status: 'Running', time: '2026-08-25 09:05', duration: '3h 21m', occupyTime: '2026-08-25 05:44' },
-  { tcid: '15014591582', host: 'jwan164-mobl', status: 'Occupied', time: '2026-08-25 07:58', duration: '6h 02m', occupyTime: '2026-08-25 01:56' },
-  { tcid: '15014591583', host: 'jwan165-mobl', status: 'Running', time: '2026-08-24 21:40', duration: '10h 18m', occupyTime: '2026-08-24 11:22' },
-  { tcid: '15014591584', host: 'jwan166-mobl', status: 'Occupied', time: '2026-08-25 12:15', duration: '1h 47m', occupyTime: '2026-08-25 10:28' },
-  { tcid: '15014591585', host: 'jwan167-mobl', status: 'Occupied', time: '2026-08-23 09:30', duration: '20h 45m', occupyTime: '2026-08-22 12:45' },
-]
+const list = ref<HostOccupyItem[]>([])
+const total = ref(0)
+const nextCursor = ref<string | null>(null)
+const state = ref<'loading' | 'list' | 'error'>('loading')
+const loadingMore = ref(false)
+const hasMore = computed(() => !!nextCursor.value && list.value.length < total.value)
 
-const list = ref<HostOccupyItem[]>(props.hosts ?? demoHosts)
+let requestSeq = 0
 
-watch(() => props.hosts, (hosts) => {
-  if (hosts) list.value = hosts
+const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e || 'Unknown error'))
+
+const fetchPage = async (cursor: string | null) => {
+  const page = await panel?.fetchOccupiedHosts({ cursor, pageSize: PAGE_SIZE })
+  if (!page) throw new Error('Panel API unavailable')
+  return page
+}
+
+/** 重新加载第一页（首次进入 / 操作成功后刷新） */
+const load = async () => {
+  const seq = ++requestSeq
+  state.value = 'loading'
+  try {
+    const page = await fetchPage(null)
+    if (seq !== requestSeq) return
+    list.value = page.list
+    total.value = page.total
+    nextCursor.value = page.next_cursor
+    state.value = 'list'
+  } catch {
+    if (seq !== requestSeq) return
+    list.value = []
+    total.value = 0
+    nextCursor.value = null
+    state.value = 'error'
+  }
+}
+
+/** 追加下一页；失败保留游标，下次滚动自动重试 */
+const loadMore = async () => {
+  if (!hasMore.value || loadingMore.value || state.value !== 'list') return
+  const seq = requestSeq
+  loadingMore.value = true
+  try {
+    const page = await fetchPage(nextCursor.value)
+    if (seq !== requestSeq) return
+    list.value.push(...page.list)
+    total.value = page.total
+    nextCursor.value = page.next_cursor
+  } catch {
+    // 保留游标，等待下次滚动重试
+  } finally {
+    if (seq === requestSeq) loadingMore.value = false
+  }
+}
+
+const onScroll = (e: Event) => {
+  const el = e.target as HTMLElement
+  if (el.scrollHeight - el.scrollTop - el.clientHeight <= 24) loadMore()
+}
+
+watch(total, (count) => emit('count-change', count), { immediate: true })
+
+onMounted(load)
+onUnmounted(() => {
+  requestSeq++
 })
 
-watch(() => list.value.length, (count) => emit('count-change', count), { immediate: true })
-
-/** 取消测试：确认 → loading 1.5s → 成功态 4s 自动关闭并移除卡片（原型 runCancelTest / autoCloseSuccess） */
+/** 取消测试：确认 → 接口释放 → 成功刷新第一页 */
 const onRelease = async (item: HostOccupyItem) => {
   const ok = await panel?.confirm({
     title: 'Cancel Test',
-    message: `Cancel test task for "${item.host}"? The HOST occupancy will be released.`,
+    message: `Cancel test task for "${item.host_name}"? The HOST occupancy will be released.`,
     confirmText: 'Confirm',
     type: 'warning',
   })
   if (!ok) return
-  emit('release', item)
 
-  panel?.showLoading(`Cancelling test on "${item.host}"…`)
-  window.setTimeout(() => {
+  panel?.showLoading(`Cancelling test on "${item.host_name}"…`)
+  try {
+    await panel?.releaseHost(item)
     panel?.showResult({
       success: true,
       title: 'Test cancelled',
-      message: `Occupancy on "${item.host}" has been released.`,
+      message: `Occupancy on "${item.host_name}" has been released.`,
       autoClose: 4000,
     })
-    list.value = list.value.filter((it) => it.tcid !== item.tcid)
-  }, 1500)
+    await load()
+  } catch (e) {
+    panel?.showResult({
+      success: false,
+      title: 'Cancel failed',
+      message: errorMessage(e),
+      actions: [{ text: 'Close', action: 'close', style: 'cancel' }],
+    })
+  }
 }
 
-/** Remote：确认后触发业务回调（原型演示不改变数据状态） */
+/** Remote：确认后建立连接并拉起 RealVNC */
 const onRemote = async (item: HostOccupyItem) => {
   const ok = await panel?.confirm({
     title: 'Connect',
-    message: `Connect to "${item.host}" via RealVNC?`,
+    message: `Connect to "${item.host_name}" via RealVNC?`,
     confirmText: 'Connect',
     type: 'info',
   })
-  if (ok) emit('remote', item)
+  if (!ok) return
+
+  panel?.showLoading(`Connecting to "${item.host_name}"…`)
+  try {
+    await panel?.connectHost({ hostId: item.host_id, hostRecId: item.host_rec_id, host: item.host_name })
+    panel?.showResult({
+      success: true,
+      title: 'VNC connected',
+      message: `RealVNC is connecting to "${item.host_name}".`,
+      autoClose: 4000,
+    })
+  } catch (e) {
+    panel?.showResult({
+      success: false,
+      title: 'Connect failed',
+      message: errorMessage(e),
+      actions: [{ text: 'Close', action: 'close', style: 'cancel' }],
+    })
+  }
 }
 </script>
 
 <template>
-  <div class="cpu-copilot-list-container">
-    <template v-if="list.length > 0">
-      <div v-for="item in list" :key="item.tcid" class="cpu-task-card">
+  <div class="cpu-copilot-list-container" @scroll.passive="onScroll">
+    <div v-if="state === 'loading'" class="host-loading">
+      <div class="loading-spinner"></div>
+      <span>Loading HOST list…</span>
+    </div>
+    <StateCard
+      v-else-if="state === 'error'"
+      :img="imgTimeout"
+      title="Load failed"
+      reason="HOST list API (retry-vnc) failed"
+      btn-text="Retry"
+      @action="load"
+    />
+    <template v-else-if="list.length > 0">
+      <div v-for="item in list" :key="item.host_id" class="cpu-task-card">
         <div class="card-header">
           <div class="card-title">
-            <span class="card-tcid">TC_ID: {{ item.tcid }}</span>
+            <span class="card-tcid">TC_ID: {{ item.tc_id || '--' }}</span>
           </div>
           <span class="card-status">{{ item.status }}</span>
         </div>
@@ -112,19 +173,19 @@ const onRemote = async (item: HostOccupyItem) => {
           <div class="card-body">
             <div class="card-field">
               <span class="card-field-label">Host Name</span>
-              <span class="card-field-value">{{ item.host }}</span>
+              <span class="card-field-value">{{ item.host_name }}</span>
             </div>
             <div class="card-field">
               <span class="card-field-label">Used Time</span>
-              <span class="card-field-value">{{ item.occupyTime }}</span>
+              <span class="card-field-value">{{ item.occupy_time || '--' }}</span>
             </div>
             <div class="card-field">
               <span class="card-field-label">Last Time</span>
-              <span class="card-field-value">{{ item.time }}</span>
+              <span class="card-field-value">{{ item.last_time || '--' }}</span>
             </div>
             <div class="card-field">
               <span class="card-field-label">Occupy Dur</span>
-              <span class="card-field-value is-warning">{{ item.duration }}</span>
+              <span class="card-field-value is-warning">{{ item.occupy_duration || '--' }}</span>
             </div>
           </div>
           <div class="card-footer">
@@ -132,6 +193,13 @@ const onRemote = async (item: HostOccupyItem) => {
             <button type="button" class="btn btn-resume" @click="onRemote(item)">Remote</button>
           </div>
         </div>
+      </div>
+      <div v-if="loadingMore || !hasMore" class="list-footer">
+        <template v-if="loadingMore">
+          <span class="footer-spinner"></span>
+          <span>Loading more…</span>
+        </template>
+        <template v-else>All HOSTs loaded</template>
       </div>
     </template>
     <StateCard
@@ -167,6 +235,52 @@ const onRemote = async (item: HostOccupyItem) => {
   }
   &::-webkit-scrollbar-thumb:hover {
     background: #9ca3af;
+  }
+}
+
+/* ===== 首屏 loading / 滚动加载状态 ===== */
+.host-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.422vh;
+  color: #6b7280;
+  font-size: 1.298vh;
+}
+
+.loading-spinner {
+  width: 3.2vh;
+  height: 3.2vh;
+  border: 0.356vh solid #e5e9ef;
+  border-top-color: #447dbc;
+  border-radius: 50%;
+  animation: cpu-spin 0.8s linear infinite;
+}
+
+.list-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.711vh;
+  padding: 1.067vh 0 0.356vh;
+  color: #9ca3af;
+  font-size: 1.12vh;
+}
+
+.footer-spinner {
+  width: 1.6vh;
+  height: 1.6vh;
+  border: 0.178vh solid #e5e9ef;
+  border-top-color: #447dbc;
+  border-radius: 50%;
+  animation: cpu-spin 0.8s linear infinite;
+}
+
+@keyframes cpu-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 

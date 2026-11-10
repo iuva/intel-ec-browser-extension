@@ -23,6 +23,15 @@
     "{{firefox}}.scripts": ["src/background.ts"],
     "{{edge}}.service_worker": "src/background.ts"
   },
+  "commands": {
+    "toggle-copilot": {
+      "suggested_key": {
+        "default": "Alt+Shift+Z",
+        "mac": "Command+Shift+Z"
+      },
+      "description": "Toggle xCopilot panel"
+    }
+  },
   "content_scripts": [
     {
       "matches": ["*://hsdes.intel.com/*", "*://hsdes-pre.intel.com/*", "<all_urls>"],

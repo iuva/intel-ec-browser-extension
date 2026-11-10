@@ -1,12 +1,11 @@
 <!-- index.vue -->
 <script setup lang="ts">
 import { provide, ref, watch, onUnmounted } from 'vue'
+import browser from 'webextension-polyfill'
 import TabHost from './tabHost.vue'
 import TabTest from './tabTest.vue'
 import TabQuery from './tabQuery.vue'
 import StateCard from './stateCard.vue'
-import type { HostOccupyItem } from './tabHost.vue'
-import type { TestHostItem } from './tabTest.vue'
 import type { QueryHostItem } from './tabQuery.vue'
 import {
   PANEL_API_KEY,
@@ -14,7 +13,11 @@ import {
   type PanelConfirmOptions,
   type PanelResultOptions,
   type CopilotTab,
+  type CopilotUserInfo,
+  type CopilotOccupiedHost,
+  type CopilotHostRef,
 } from './context'
+import { getAvailableList, getRetryList, releaseHost as releaseHostApi, reportConnect } from '/@/api/host'
 import { imgLogo, imgCancelTest, imgRemoteConnect, imgSuccess, imgFail, imgSearchAvatar, imgNoUser } from './images'
 
 /**
@@ -45,6 +48,10 @@ const props = withDefaults(defineProps<{
   onClose?: () => void
   state?: string
   userState?: 0 | 1 | 2
+  /** 当前选中的 TC_ID（由父级 TC 监听驱动）；null 表示没有选中 */
+  tcId?: string | null
+  /** 登录用户信息（Main.vue 下发，页签接口调用使用） */
+  userInfo?: CopilotUserInfo | null
 }>(), {
   position: 'right',
   user: '',
@@ -52,16 +59,14 @@ const props = withDefaults(defineProps<{
   onClose: undefined,
   state: '',
   userState: 2,
+  tcId: null,
+  userInfo: null,
 })
 
 const show = defineModel('show', {type: Boolean, default: false})
 
 /** 各页签业务事件向父级转发（业务接入点） */
 const emit = defineEmits<{
-  (e: 'release', item: HostOccupyItem): void
-  (e: 'remote', item: HostOccupyItem | TestHostItem): void
-  (e: 'start-test', host: TestHostItem): void
-  (e: 'tc-change', tcId: string | null): void
   (e: 'search', requirement: string): void
   (e: 'host-open', host: QueryHostItem): void
   (e: 'retry-user-info'): void
@@ -88,6 +93,17 @@ const switchTab = (tab: CopilotTab) => {
   // 与原型一致：切页签重置顶栏联动文案（新页签挂载后自行刷新提示）
   userHint.value = null
 }
+
+/** 面板可见时对齐过的 TC_ID（隐藏期间不更新，避免隐藏时触发任何逻辑） */
+const appliedTcId = ref<string | null>(null)
+
+watch([show, () => props.tcId], ([visible, current]) => {
+  // 面板隐藏：忽略 TC_ID 变化，不更新状态、不加载、不切页签
+  if (!visible) return
+  if (appliedTcId.value !== current) appliedTcId.value = current
+  // 被选中的 TC_ID：展示 Let's Test 列表（页签内据 tcId 加载数据）
+  if (current) switchTab('available')
+})
 
 const onUserHint = (hint: string | null) => {
   userHint.value = hint
@@ -203,12 +219,72 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onPanelKeydown, true)
 })
 
+// ===== 业务接口能力（页签通过 PanelApi 调用，不直接依赖 api 模块） =====
+const getCycleName = (): string => new URLSearchParams(window.location.search).get('cycle') || ''
+
+const fetchAvailableHosts: PanelApi['fetchAvailableHosts'] = async ({tcId, cursor, pageSize}) =>
+  getAvailableList({
+    tc_id: tcId,
+    cycle_name: getCycleName(),
+    email: props.userInfo?.email ?? '',
+    user_name: props.userInfo?.full_name ?? '',
+    page_size: pageSize,
+    cursor,
+  })
+
+const fetchOccupiedHosts: PanelApi['fetchOccupiedHosts'] = async ({cursor, pageSize}) =>
+  getRetryList({
+    user_id: props.userInfo?.full_name ?? '',
+    page_size: pageSize,
+    cursor,
+  })
+
+const releaseHost = async (item: CopilotOccupiedHost): Promise<void> => {
+  if (!item.host_id) throw new Error('Missing host id')
+  await releaseHostApi({
+    user_id: props.userInfo?.full_name ?? '',
+    host_list: [item.host_id],
+  })
+}
+
+const connectHost = async (item: CopilotHostRef): Promise<void> => {
+  const id = item.hostRecId || item.hostId
+  if (!id) throw new Error('Missing host id')
+  const user = props.userInfo
+  const params = item.tcId
+    ? {
+        id,
+        user_id: user?.full_name ?? '',
+        tc_id: item.tcId,
+        cycle_name: getCycleName(),
+        user_name: user?.full_name ?? '',
+      }
+    : { id }
+  const res = await reportConnect(params)
+  const data = res?.data ?? {}
+  if (!data.ip) throw new Error('No VNC connection info returned')
+  const vncRes = await browser.runtime.sendMessage({
+    type: 'vncConnect',
+    hostInfo: {
+      host: data.ip,
+      port: data.port,
+      password: data.password,
+      username: data.username,
+    },
+  }) as { success?: boolean; error?: string } | undefined
+  if (!vncRes?.success) throw new Error(vncRes?.error || 'Failed to launch RealVNC')
+}
+
 // 提供给各页签的面板能力
 provide(PANEL_API_KEY, {
   confirm,
   showLoading,
   showResult,
   hideIndicator,
+  fetchAvailableHosts,
+  fetchOccupiedHosts,
+  releaseHost,
+  connectHost,
 } satisfies PanelApi)
 
 defineExpose({
@@ -289,15 +365,11 @@ defineExpose({
         <TabHost
           v-if="activeTab === 'occupied'"
           @count-change="occupiedCount = $event"
-          @release="(item) => emit('release', item)"
-          @remote="(item) => emit('remote', item)"
         />
         <TabTest
           v-else-if="activeTab === 'available'"
+          :tc-id="appliedTcId"
           @user-hint="onUserHint"
-          @tc-change="(tcId) => emit('tc-change', tcId)"
-          @start-test="(host) => emit('start-test', host)"
-          @remote="(host) => emit('remote', host)"
         />
         <TabQuery
           v-else

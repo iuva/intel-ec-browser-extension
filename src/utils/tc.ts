@@ -76,8 +76,12 @@ class TcUtils {
     let timer: ReturnType<typeof setTimeout> | null = null
 
     const check = () => {
-      // 与 main.vue 行为一致：仅 TC 执行页面内解析
+      // 仅 TC 执行页面内解析；离开 TC 页面时统一回调一次 null
       if (!this.isTC()) {
+        if (lastId !== null) {
+          lastId = null
+          callback(null)
+        }
         return
       }
       const id = this.getTCID()

@@ -159,9 +159,9 @@ function getBaseURLFromEnv(): string | undefined {
 }
 
 // Cross-origin request proxy function
-export const proxyFetch = (url: string, options: any = {}) => {
+export const proxyFetch = <T = any>(url: string, options: any = {}): Promise<T> => {
 
-  return new Promise((resolve, reject) => {
+  return new Promise<T>((resolve, reject) => {
         // @ts-ignore Use chrome.runtime in content script, browser.runtime in background script
         const runtime = browser.runtime
 

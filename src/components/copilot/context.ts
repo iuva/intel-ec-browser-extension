@@ -1,4 +1,31 @@
 import type { InjectionKey } from 'vue'
+import type {
+  AvailableHostPage,
+  AvailableHostVO,
+  HostListPage,
+  HostStatusStats,
+  OccupiedHostVO,
+} from '/@/api/host'
+
+export type { HostStatusStats }
+
+/** 登录用户信息（Main.vue 下发） */
+export interface CopilotUserInfo {
+  full_name: string
+  email: string
+}
+
+/** 页签操作 HOST 时使用的标识（release 用 hostId，connect 优先 hostRecId） */
+export interface CopilotHostRef {
+  hostId: string
+  hostRecId?: string
+  host: string
+  /** Let's Test 连接时传入当前 TC_ID；My HOST 不传 */
+  tcId?: string | null
+}
+
+export type CopilotAvailableHost = AvailableHostVO
+export type CopilotOccupiedHost = OccupiedHostVO
 
 /** 面板页签标识（与原型 data-tab 一致） */
 export type CopilotTab = 'occupied' | 'available' | 'query'
@@ -44,6 +71,14 @@ export interface PanelApi {
   showResult(options: PanelResultOptions): void
   /** 关闭 loading / 结果浮层 */
   hideIndicator(): void
+  /** 拉取 Let's Test 可用 HOST（游标分页） */
+  fetchAvailableHosts(params: { tcId: string; cursor: string | null; pageSize: number }): Promise<AvailableHostPage>
+  /** 拉取 My HOST 待恢复 HOST（游标分页） */
+  fetchOccupiedHosts(params: { cursor: string | null; pageSize: number }): Promise<HostListPage<CopilotOccupiedHost>>
+  /** 释放 HOST（Cancel Test） */
+  releaseHost(item: CopilotOccupiedHost): Promise<void>
+  /** 建立连接并拉起 RealVNC */
+  connectHost(item: CopilotHostRef): Promise<void>
 }
 
 export const PANEL_API_KEY: InjectionKey<PanelApi> = Symbol('CopilotPanelApi')
