@@ -23,6 +23,8 @@ const panel = inject<PanelApi | null>(PANEL_API_KEY, null)
 const list = ref<HostOccupyItem[]>([])
 const total = ref(0)
 const state = ref<'loading' | 'list' | 'error'>('loading')
+/** 首屏加载失败的详细原因（含接口与调用入参） */
+const loadError = ref('')
 const loadingMore = ref(false)
 const hasMore = ref(false)
 
@@ -46,10 +48,11 @@ const load = async () => {
     list.value = page.data.hosts
     total.value = page.data.total
     state.value = 'list'
-  } catch {
+  } catch (e) {
     if (seq !== requestSeq) return
     list.value = []
     total.value = 0
+    loadError.value = errorMessage(e)
     state.value = 'error'
   }
 }
@@ -153,7 +156,7 @@ const onRemote = async (item: HostOccupyItem) => {
       v-else-if="state === 'error'"
       :img="imgTimeout"
       title="Load failed"
-      reason="HOST list API (retry-vnc) failed"
+      :reason="loadError || 'HOST list API (POST /api/v1/host/hosts/retry-vnc) failed'"
       btn-text="Retry"
       @action="load"
     />

@@ -18,7 +18,7 @@ import {
 } from './context'
 import { getAvailableList, getRetryList, releaseHost as releaseHostApi, reportConnect } from '/@/api/host'
 import { getCycle } from '/@/utils/tc'
-import { connectVnc } from '/@/utils/vnc'
+import { connectVnc, type VncConnectionData } from '/@/utils/vnc'
 import { imgLogo, imgCancelTest, imgRemoteConnect, imgSuccess, imgFail, imgSearchAvatar, imgNoUser } from './images'
 
 /**
@@ -221,29 +221,62 @@ onUnmounted(() => {
 })
 
 // ===== 业务接口能力（页签通过 PanelApi 调用，不直接依赖 api 模块） =====
-const fetchAvailableHosts: PanelApi['fetchAvailableHosts'] = async ({tcId, cursor, pageSize}) =>
-  getAvailableList({
+
+/** 归一化异常描述（proxyFetch 的 reject 值可能是 Error / 字符串 / 对象） */
+const toErrorDetail = (e: unknown): string => {
+  if (e instanceof Error) return e.message
+  if (typeof e === 'string') return e
+  try {
+    return JSON.stringify(e) ?? String(e)
+  } catch {
+    return String(e)
+  }
+}
+
+/** 把接口异常包装成带「哪个接口 + 怎么调用（入参）」的错误信息（toast / 错误卡片展示用） */
+const wrapApiError = (e: unknown, api: string, path: string, params: unknown): Error =>
+  new Error(`${api} (POST ${path}) failed: ${toErrorDetail(e)}; request: ${JSON.stringify(params)}`)
+
+const fetchAvailableHosts: PanelApi['fetchAvailableHosts'] = async ({tcId, cursor, pageSize}) => {
+  const params = {
     tc_id: tcId,
     cycle_name: getCycle() ?? '',
     email: props.userInfo?.email ?? '',
     user_name: props.userInfo?.full_name ?? '',
     page_size: pageSize,
     cursor,
-  })
+  }
+  try {
+    return await getAvailableList(params)
+  } catch (e) {
+    throw wrapApiError(e, 'Available HOST list API', '/api/v1/host/hosts/available', params)
+  }
+}
 
-const fetchOccupiedHosts: PanelApi['fetchOccupiedHosts'] = async ({cursor, pageSize}) =>
-  getRetryList({
+const fetchOccupiedHosts: PanelApi['fetchOccupiedHosts'] = async ({cursor, pageSize}) => {
+  const params = {
     user_id: props.userInfo?.full_name ?? '',
     page_size: pageSize,
     cursor,
-  })
+  }
+  try {
+    return await getRetryList(params)
+  } catch (e) {
+    throw wrapApiError(e, 'HOST list API', '/api/v1/host/hosts/retry-vnc', params)
+  }
+}
 
 const releaseHost = async (item: CopilotOccupiedHost): Promise<void> => {
   if (!item.host_id) throw new Error('Missing host id')
-  await releaseHostApi({
+  const params = {
     user_id: props.userInfo?.full_name ?? '',
     host_list: [item.host_id],
-  })
+  }
+  try {
+    await releaseHostApi(params)
+  } catch (e) {
+    throw wrapApiError(e, 'Release HOST API', '/api/v1/host/hosts/release', params)
+  }
 }
 
 const connectHost = async (item: CopilotHostRef): Promise<void> => {
@@ -259,8 +292,18 @@ const connectHost = async (item: CopilotHostRef): Promise<void> => {
         user_name: user?.full_name ?? '',
       }
     : { id }
-  const res = await reportConnect(params)
-  await connectVnc(res?.data)
+  let connectInfo: VncConnectionData | null | undefined
+  try {
+    const res = await reportConnect(params)
+    connectInfo = res?.data
+  } catch (e) {
+    throw wrapApiError(e, 'VNC connect API', '/api/v1/host/hosts/vnc/connect', params)
+  }
+  try {
+    await connectVnc(connectInfo)
+  } catch (e) {
+    throw new Error(`RealVNC launch failed: ${toErrorDetail(e)}; connect info: ${JSON.stringify(connectInfo)}`)
+  }
 }
 
 // 提供给各页签的面板能力

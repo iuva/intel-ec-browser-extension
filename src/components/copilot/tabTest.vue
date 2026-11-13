@@ -337,7 +337,7 @@ defineExpose({
         v-else-if="state === 'no-user'"
         :img="imgNoUser"
         title="Could not get user info"
-        reason="Auth API failed, or no user info from PHOENIX"
+        reason="Auth API (POST /api/v1/host/hosts/available) failed, or no user info from PHOENIX"
         btn-text="Retry"
         @action="retryUser"
       />
