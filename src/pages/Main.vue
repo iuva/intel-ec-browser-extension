@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import FloatButton from "/@/components/floatButton.vue";
 import Copilot from "/@/components/copilot/index.vue";
-import type { CopilotUserInfo } from "/@/components/copilot/context";
+import { PANEL_VISIBILITY_KEY, type CopilotUserInfo } from "/@/components/copilot/context";
 import { FLOAT_BUTTON_API_KEY, type FloatButtonApi } from "/@/components/floatButtonContext";
-import {onMounted, onUnmounted, provide, ref} from "vue";
+import {computed, onMounted, onUnmounted, provide, ref} from "vue";
 import { watchTCID } from "/@/utils/tc";
 import { getUserInfo, userAuth } from "/@/api/auth";
 import browser from "webextension-polyfill";
@@ -33,6 +33,11 @@ const copilotState = ref({
   show: false,
 })
 const copilotRef = ref<InstanceType<typeof Copilot> | null>(null)
+
+/** 面板可见性：由组合根统一下发，供 Main 子树内组件按需 watch */
+const panelVisible = computed(() => copilotState.value.show)
+
+provide(PANEL_VISIBILITY_KEY, { visible: panelVisible })
 
 /** 切换面板 */
 const toggleCopilot = (): void => {

@@ -1,4 +1,4 @@
-import type { InjectionKey } from 'vue'
+import type { InjectionKey, Ref } from 'vue'
 import type {
   AvailableHostPage,
   AvailableHostVO,
@@ -82,3 +82,12 @@ export interface PanelApi {
 }
 
 export const PANEL_API_KEY: InjectionKey<PanelApi> = Symbol('CopilotPanelApi')
+
+/** 面板可见性（Main.vue provide；Main 子树内组件可选择性 watch） */
+export interface PanelVisibilityApi {
+  /** 面板是否可见（只读）；关闭/隐藏为 false */
+  visible: Readonly<Ref<boolean>>
+}
+
+export const PANEL_VISIBILITY_KEY: InjectionKey<PanelVisibilityApi> =
+  Symbol('CopilotPanelVisibility')

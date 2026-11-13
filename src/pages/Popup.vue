@@ -1,30 +1,17 @@
 <script lang="ts" setup>
-import browser from "webextension-polyfill";
+import { connectVnc } from '/@/utils/vnc'
 
 console.log("Hello from the popup!");
 const appVersion = import.meta.env.VITE_APP_VERSION;
 
 // 测试VNC连接
-const testVncConnection = () => {
+const testVncConnection = async () => {
   console.log('Testing VNC connection...')
-  
-  // 发送消息到background script
-  if (typeof browser !== 'undefined' && browser.runtime) {
-    browser.runtime.sendMessage({
-      type: 'vncConnect',
-      hostInfo: {
-        host: 'localhost',
-        port: 5900,
-        name: 'Test Host',
-        timestamp: new Date().toISOString()
-      }
-    }).then(response => {
-      console.log('VNC connection test response:', response)
-    }).catch(error => {
-      console.error('VNC connection test failed:', error)
-    })
-  } else {
-    console.error('Browser runtime API not available')
+  try {
+    await connectVnc({ ip: 'localhost', port: 5900 })
+    console.log('VNC connection test succeeded')
+  } catch (error) {
+    console.error('VNC connection test failed:', error)
   }
 }
 </script>

@@ -1,7 +1,6 @@
 <!-- index.vue -->
 <script setup lang="ts">
 import { provide, ref, watch, onUnmounted } from 'vue'
-import browser from 'webextension-polyfill'
 import TabHost from './tabHost.vue'
 import TabTest from './tabTest.vue'
 import TabQuery from './tabQuery.vue'
@@ -18,6 +17,8 @@ import {
   type CopilotHostRef,
 } from './context'
 import { getAvailableList, getRetryList, releaseHost as releaseHostApi, reportConnect } from '/@/api/host'
+import { getCycle } from '/@/utils/tc'
+import { connectVnc } from '/@/utils/vnc'
 import { imgLogo, imgCancelTest, imgRemoteConnect, imgSuccess, imgFail, imgSearchAvatar, imgNoUser } from './images'
 
 /**
@@ -220,12 +221,10 @@ onUnmounted(() => {
 })
 
 // ===== 业务接口能力（页签通过 PanelApi 调用，不直接依赖 api 模块） =====
-const getCycleName = (): string => new URLSearchParams(window.location.search).get('cycle') || ''
-
 const fetchAvailableHosts: PanelApi['fetchAvailableHosts'] = async ({tcId, cursor, pageSize}) =>
   getAvailableList({
     tc_id: tcId,
-    cycle_name: getCycleName(),
+    cycle_name: getCycle() ?? '',
     email: props.userInfo?.email ?? '',
     user_name: props.userInfo?.full_name ?? '',
     page_size: pageSize,
@@ -256,23 +255,12 @@ const connectHost = async (item: CopilotHostRef): Promise<void> => {
         id,
         user_id: user?.full_name ?? '',
         tc_id: item.tcId,
-        cycle_name: getCycleName(),
+        cycle_name: getCycle() ?? '',
         user_name: user?.full_name ?? '',
       }
     : { id }
   const res = await reportConnect(params)
-  const data = res?.data ?? {}
-  if (!data.ip) throw new Error('No VNC connection info returned')
-  const vncRes = await browser.runtime.sendMessage({
-    type: 'vncConnect',
-    hostInfo: {
-      host: data.ip,
-      port: data.port,
-      password: data.password,
-      username: data.username,
-    },
-  }) as { success?: boolean; error?: string } | undefined
-  if (!vncRes?.success) throw new Error(vncRes?.error || 'Failed to launch RealVNC')
+  await connectVnc(res?.data)
 }
 
 // 提供给各页签的面板能力

@@ -4,9 +4,11 @@ import { computed, inject, onUnmounted, ref, watch } from 'vue'
 import StateCard from './stateCard.vue'
 import {
   PANEL_API_KEY,
+  PANEL_VISIBILITY_KEY,
   type CopilotAvailableHost,
   type HostStatusStats,
   type PanelApi,
+  type PanelVisibilityApi,
 } from './context'
 import { imgSearchAvatar, imgTcNotDetected, imgNoUser, imgTimeout, imgNoMatch } from './images'
 
@@ -38,6 +40,8 @@ const emit = defineEmits<{
 }>()
 
 const panel = inject<PanelApi | null>(PANEL_API_KEY, null)
+/** 面板可见性（Main.vue provide）；未提供时静默不生效 */
+const panelVisibility = inject<PanelVisibilityApi | null>(PANEL_VISIBILITY_KEY, null)
 
 type TestState = 'idle' | 'selected' | 'loading' | 'timeout' | 'no-match' | 'tc-not-detected' | 'no-user'
 
@@ -57,6 +61,7 @@ const searchName = ref('')
 const searchStatus = ref<'all' | TestHostItem['status']>('all')
 /** 搜索刷新中的 loading（仅列表区域，demoState 不变） */
 const searching = ref(false)
+let searchTimer = 0
 
 const STATUS_OPTIONS: Array<{ value: 'all' | TestHostItem['status']; label: string }> = [
   { value: 'all', label: 'All' },
@@ -158,6 +163,7 @@ watch(() => props.tcId, (tcId) => {
 
 onUnmounted(() => {
   requestSeq++
+  window.clearTimeout(searchTimer)
 })
 
 const retryLoad = () => {
@@ -179,11 +185,49 @@ const retryUser = () => setState('idle')
 
 /** 搜索（原型 applyQuery）：列表区域 loading 1.5s 后刷新结果 */
 const applyQuery = () => {
+  window.clearTimeout(searchTimer)
   searching.value = true
-  window.setTimeout(() => {
+  searchTimer = window.setTimeout(() => {
     searching.value = false
   }, 1500)
 }
+
+/** 重新打开面板时恢复全新列表：清空搜索条件、分页、列表与统计 */
+const resetForReopen = () => {
+  requestSeq++
+  window.clearTimeout(searchTimer)
+  searching.value = false
+  searchName.value = ''
+  searchStatus.value = 'all'
+  hosts.value = []
+  total.value = 0
+  nextCursor.value = null
+  loadingMore.value = false
+  stats.value = { Free: 0, Occupied: 0, Running: 0, Offline: 0 }
+}
+
+/**
+ * 面板可见性（Main.vue 下发）：
+ * 隐藏时只失效在途请求（保留画面直到关闭动画结束）；显示时重置为全新列表并重新拉第一页。
+ */
+watch(
+  () => panelVisibility?.visible.value,
+  (visible) => {
+    if (visible === undefined) return
+    if (!visible) {
+      requestSeq++
+      window.clearTimeout(searchTimer)
+      searching.value = false
+      return
+    }
+    resetForReopen()
+    if (props.tcId) {
+      void loadHostList(props.tcId)
+    } else {
+      setState('tc-not-detected')
+    }
+  },
+)
 
 /** Start Test：确认后建立连接并拉起 RealVNC，成功后刷新列表 */
 const onStartTest = async (host: TestHostItem) => {

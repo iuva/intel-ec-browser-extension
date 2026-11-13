@@ -1,4 +1,5 @@
 import browser from "webextension-polyfill";
+import { VNC_CONNECT } from './utils/vnc';
 const NATIVE_HOST_NAME = 'com.realvnc.vncviewer';
 
 console.log("Hello from the background!");
@@ -66,7 +67,7 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     });
     
     return true; // Keep message channel open for async response
-  }else if(request.type === 'vncConnect'){
+  }else if(request.type === VNC_CONNECT){
     /**
      * Parameters received:
      * @param {Object} request - Request object containing hostInfo
