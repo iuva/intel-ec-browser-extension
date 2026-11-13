@@ -22,10 +22,9 @@ const panel = inject<PanelApi | null>(PANEL_API_KEY, null)
 
 const list = ref<HostOccupyItem[]>([])
 const total = ref(0)
-const nextCursor = ref<string | null>(null)
 const state = ref<'loading' | 'list' | 'error'>('loading')
 const loadingMore = ref(false)
-const hasMore = computed(() => !!nextCursor.value && list.value.length < total.value)
+const hasMore = ref(false)
 
 let requestSeq = 0
 
@@ -44,15 +43,13 @@ const load = async () => {
   try {
     const page = await fetchPage(null)
     if (seq !== requestSeq) return
-    list.value = page.list
-    total.value = page.total
-    nextCursor.value = page.next_cursor
+    list.value = page.data.hosts
+    total.value = page.data.total
     state.value = 'list'
   } catch {
     if (seq !== requestSeq) return
     list.value = []
     total.value = 0
-    nextCursor.value = null
     state.value = 'error'
   }
 }
@@ -63,11 +60,10 @@ const loadMore = async () => {
   const seq = requestSeq
   loadingMore.value = true
   try {
-    const page = await fetchPage(nextCursor.value)
+    const page = await fetchPage(null)
     if (seq !== requestSeq) return
-    list.value.push(...page.list)
-    total.value = page.total
-    nextCursor.value = page.next_cursor
+    list.value.push(...page.data.hosts)
+    total.value = page.data.total
   } catch {
     // 保留游标，等待下次滚动重试
   } finally {

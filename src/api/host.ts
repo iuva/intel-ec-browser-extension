@@ -23,8 +23,11 @@ export interface HostStatusStats {
 
 /** 通用游标分页响应 */
 export interface HostListPage<T> {
-    list: T[]
-    total: number
+    code: number
+    data: {
+        hosts: T[]
+        total: number
+    }
     /** 下一页游标；null 表示没有更多数据 */
     next_cursor: string | null
 }
