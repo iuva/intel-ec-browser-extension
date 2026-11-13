@@ -396,7 +396,7 @@ defineExpose({
             v-if="state === 'timeout'"
             :img="imgTimeout"
             title="Load failed"
-            reason="HOST list API failed. Check network & retry"
+            reason="HOST list API (POST /api/v1/host/hosts/available) failed. Check network & retry"
             btn-text="Retry"
             @action="retryLoad"
           />
