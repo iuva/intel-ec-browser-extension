@@ -237,14 +237,14 @@ const toErrorDetail = (e: unknown): string => {
 const wrapApiError = (e: unknown, api: string, path: string, params: unknown): Error =>
   new Error(`${api} (POST ${path}) failed: ${toErrorDetail(e)}; request: ${JSON.stringify(params)}`)
 
-const fetchAvailableHosts: PanelApi['fetchAvailableHosts'] = async ({tcId, cursor, pageSize}) => {
+const fetchAvailableHosts: PanelApi['fetchAvailableHosts'] = async ({tcId, lastId, pageSize}) => {
   const params = {
     tc_id: tcId,
     cycle_name: getCycle() ?? '',
     email: props.userInfo?.email ?? '',
     user_name: props.userInfo?.full_name ?? '',
     page_size: pageSize,
-    cursor,
+    ...(lastId ? { last_id: lastId } : {}),
   }
   try {
     return await getAvailableList(params)

@@ -99,16 +99,14 @@ const userInfo = ref<CopilotUserInfo | null>(null)
 const tcId = ref<string | null>(null)
 let stopTcWatch: (() => void) | null = null
 
-/** TC_ID 变化：非空时浮钮 tooltip 提示 3s，无选中 TC_ID 时立即清空 */
+/** TC_ID 变化：非空时打开面板并加载对应 HOST 列表，无选中 TC_ID 时重置列表 */
 const onTcIdChange = (id: string | null) => {
   tcId.value = id
-  const api = floatButtonRef.value
-  if (!api) return
-  if (id) {
-    api.showTooltip(3000, `TC_ID detected: ${id}`, true)
-  } else {
-    api.resetTooltip(false, true)
-  }
+  // Copilot 监听 show 与 tcId：自动切到 Let's Test，并按最新 TC_ID 重新加载
+  if (id) copilotState.value.show = true
+
+  // 勾选、切换或取消 TC_ID 均不展示 tooltip，并立即清除可能仍在显示的提示
+  floatButtonRef.value?.resetTooltip(false, true)
 }
 
 /** 用户信息请求序号：只接受最后一次请求的结果 */

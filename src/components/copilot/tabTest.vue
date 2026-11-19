@@ -49,10 +49,13 @@ const state = ref<TestState>('idle')
 const selectedTcId = ref<string | null>(null)
 const hosts = ref<TestHostItem[]>([])
 const total = ref(0)
-const nextCursor = ref<string | null>(null)
+/** 分页游标：上一页最后一个 host_id；首屏/末页为 null */
+const lastId = ref<string | null>(null)
 const stats = ref<HostStatusStats>({ Free: 0, Occupied: 0, Running: 0, Offline: 0 })
+/** 首屏加载失败的详细原因（含接口与调用入参） */
+const loadError = ref('')
 const loadingMore = ref(false)
-const hasMore = computed(() => !!nextCursor.value && hosts.value.length < total.value)
+const hasMore = ref(false)
 
 let requestSeq = 0
 
@@ -95,30 +98,31 @@ const setState = (next: TestState) => {
 
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e || 'Unknown error'))
 
-const fetchPage = async (tcId: string, cursor: string | null) => {
-  const page = await panel?.fetchAvailableHosts({ tcId, cursor, pageSize: PAGE_SIZE })
-  if (!page) throw new Error('Panel API unavailable')
-  return page
-}
-
 /** 按 TC_ID 加载 HOST 列表：首屏重置并写入接口 stats */
 const loadHostList = async (tcId: string) => {
   const seq = ++requestSeq
   selectedTcId.value = tcId
   hosts.value = []
   total.value = 0
-  nextCursor.value = null
+  lastId.value = null
+  hasMore.value = false
+  loadError.value = ''
   setState('loading')
   try {
-    const page = await fetchPage(tcId, null)
+    const page = await panel?.fetchAvailableHosts({ tcId, pageSize: PAGE_SIZE })
+    if (!page) throw new Error('Panel API unavailable')
     if (seq !== requestSeq) return
-    hosts.value = page.list
-    total.value = page.total
-    nextCursor.value = page.next_cursor
+    hosts.value = page.data.hosts
+    total.value = page.data.total
+    lastId.value = page.data.last_id ?? null
+    hasMore.value = page.data.has_next
     stats.value = page.stats
-    setState(page.list.length > 0 ? 'selected' : 'no-match')
-  } catch {
+    setState(page.data.hosts.length > 0 ? 'selected' : 'no-match')
+  } catch (e) {
     if (seq !== requestSeq) return
+    lastId.value = null
+    hasMore.value = false
+    loadError.value = errorMessage(e)
     setState('timeout')
   }
 }
@@ -129,11 +133,17 @@ const loadMore = async () => {
   const seq = requestSeq
   loadingMore.value = true
   try {
-    const page = await fetchPage(selectedTcId.value, nextCursor.value)
+    const page = await panel?.fetchAvailableHosts({
+      tcId: selectedTcId.value,
+      lastId: lastId.value ?? undefined,
+      pageSize: PAGE_SIZE,
+    })
+    if (!page) throw new Error('Panel API unavailable')
     if (seq !== requestSeq) return
-    hosts.value.push(...page.list)
-    total.value = page.total
-    nextCursor.value = page.next_cursor
+    hosts.value.push(...page.data.hosts)
+    total.value = page.data.total
+    lastId.value = page.data.last_id ?? null
+    hasMore.value = page.data.has_next
     stats.value = page.stats
   } catch {
     // 保留游标，等待下次滚动重试
@@ -153,11 +163,8 @@ watch(() => props.tcId, (tcId) => {
     void loadHostList(tcId)
     return
   }
-  requestSeq++
+  resetForReopen()
   selectedTcId.value = null
-  hosts.value = []
-  total.value = 0
-  nextCursor.value = null
   setState('tc-not-detected')
 }, { immediate: true })
 
@@ -192,8 +199,8 @@ const applyQuery = () => {
   }, 1500)
 }
 
-/** 重新打开面板时恢复全新列表：清空搜索条件、分页、列表与统计 */
-const resetForReopen = () => {
+/** 重新打开面板或取消 TC_ID 时恢复原始列表：清空搜索条件、分页、列表与统计 */
+function resetForReopen() {
   requestSeq++
   window.clearTimeout(searchTimer)
   searching.value = false
@@ -201,7 +208,9 @@ const resetForReopen = () => {
   searchStatus.value = 'all'
   hosts.value = []
   total.value = 0
-  nextCursor.value = null
+  lastId.value = null
+  hasMore.value = false
+  loadError.value = ''
   loadingMore.value = false
   stats.value = { Free: 0, Occupied: 0, Running: 0, Offline: 0 }
 }
@@ -396,7 +405,7 @@ defineExpose({
             v-if="state === 'timeout'"
             :img="imgTimeout"
             title="Load failed"
-            reason="HOST list API (POST /api/v1/host/hosts/available) failed. Check network & retry"
+            :reason="loadError || 'HOST list API (POST /api/v1/host/hosts/available) failed. Check network & retry'"
             btn-text="Retry"
             @action="retryLoad"
           />
@@ -425,11 +434,11 @@ defineExpose({
             />
             <div
               v-for="host in filteredHosts"
-              :key="host.host_id"
+              :key="host.host_rec_id"
               class="test-host-card"
             >
               <div class="test-host-card-header">
-                <span class="test-host-name">{{ host.host_name }}</span>
+                <span class="test-host-name">{{ host.user_name }}</span>
                 <span class="test-host-status" :class="`is-${host.status.toLowerCase()}`">{{ host.status }}</span>
               </div>
               <div class="test-host-fields">

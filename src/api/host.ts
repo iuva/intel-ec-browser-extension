@@ -21,20 +21,23 @@ export interface HostStatusStats {
     Offline: number
 }
 
-/** 通用游标分页响应 */
+/** 通用分页响应 */
 export interface HostListPage<T> {
     code: number
     data: {
         hosts: T[]
         total: number
+        /** 是否有下一页 */
+        has_next: boolean
+        /** 分页游标：上一页最后一个 host_id；首屏/末页为 null */
+        last_id?: string | null
     }
-    /** 下一页游标；null 表示没有更多数据 */
-    next_cursor: string | null
 }
 
 export interface AvailableHostVO {
     host_id: string
     host_rec_id?: string
+    user_name: string
     host_name: string
     status: 'Free' | 'Occupied' | 'Running' | 'Offline'
     /** Used By */
@@ -69,8 +72,8 @@ export interface AvailableHostQuery {
     email: string
     user_name: string
     page_size?: number
-    /** 首次请求传 null，之后取上一页 next_cursor */
-    cursor?: string | null
+    /** 分页游标：上一页最后一个 host_id；首屏不传 */
+    last_id?: string
 }
 
 export interface RetryHostQuery {
@@ -87,7 +90,7 @@ export const getAvailableList = (data: AvailableHostQuery) =>
     proxyFetch<AvailableHostPage>(urls.available, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({...data, page_size: data.page_size ?? 50, cursor: data.cursor ?? null})
+        body: JSON.stringify({...data, page_size: data.page_size ?? 50})
     })
 
 /**

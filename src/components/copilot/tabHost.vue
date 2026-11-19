@@ -26,32 +26,35 @@ const state = ref<'loading' | 'list' | 'error'>('loading')
 /** 首屏加载失败的详细原因（含接口与调用入参） */
 const loadError = ref('')
 const loadingMore = ref(false)
+/** 分页游标：上一页最后一个 host_id；首屏/末页为 null */
+const nextCursor = ref<string | null>(null)
 const hasMore = ref(false)
 
 let requestSeq = 0
 
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e || 'Unknown error'))
 
-const fetchPage = async (cursor: string | null) => {
-  const page = await panel?.fetchOccupiedHosts({ cursor, pageSize: PAGE_SIZE })
-  if (!page) throw new Error('Panel API unavailable')
-  return page
-}
-
 /** 重新加载第一页（首次进入 / 操作成功后刷新） */
 const load = async () => {
   const seq = ++requestSeq
   state.value = 'loading'
+  nextCursor.value = null
+  hasMore.value = false
   try {
-    const page = await fetchPage(null)
+    const page = await panel?.fetchOccupiedHosts({ cursor: null, pageSize: PAGE_SIZE })
+    if (!page) throw new Error('Panel API unavailable')
     if (seq !== requestSeq) return
     list.value = page.data.hosts
     total.value = page.data.total
+    nextCursor.value = page.data.last_id ?? null
+    hasMore.value = page.data.has_next
     state.value = 'list'
   } catch (e) {
     if (seq !== requestSeq) return
     list.value = []
     total.value = 0
+    nextCursor.value = null
+    hasMore.value = false
     loadError.value = errorMessage(e)
     state.value = 'error'
   }
@@ -63,10 +66,13 @@ const loadMore = async () => {
   const seq = requestSeq
   loadingMore.value = true
   try {
-    const page = await fetchPage(null)
+    const page = await panel?.fetchOccupiedHosts({ cursor: nextCursor.value, pageSize: PAGE_SIZE })
+    if (!page) throw new Error('Panel API unavailable')
     if (seq !== requestSeq) return
     list.value.push(...page.data.hosts)
     total.value = page.data.total
+    nextCursor.value = page.data.last_id ?? null
+    hasMore.value = page.data.has_next
   } catch {
     // 保留游标，等待下次滚动重试
   } finally {
