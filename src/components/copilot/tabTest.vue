@@ -116,7 +116,7 @@ const loadHostList = async (tcId: string) => {
     total.value = page.data.total
     lastId.value = page.data.last_id ?? null
     hasMore.value = page.data.has_next
-    stats.value = page.stats
+    // stats.value = page.stats
     setState(page.data.hosts.length > 0 ? 'selected' : 'no-match')
   } catch (e) {
     if (seq !== requestSeq) return
@@ -144,7 +144,7 @@ const loadMore = async () => {
     total.value = page.data.total
     lastId.value = page.data.last_id ?? null
     hasMore.value = page.data.has_next
-    stats.value = page.stats
+    // stats.value = page.stats
   } catch {
     // 保留游标，等待下次滚动重试
   } finally {
