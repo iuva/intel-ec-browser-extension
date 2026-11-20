@@ -16,7 +16,7 @@ import {
   type CopilotOccupiedHost,
   type CopilotHostRef,
 } from './context'
-import { getAvailableList, getRetryList, releaseHost as releaseHostApi, reportConnect } from '/@/api/host'
+import { getAvailableList, getRetryList, releaseHost as releaseHostApi, reportConnect, fetchHostStats as fetchHostStatsApi } from '/@/api/host'
 import { getCycle } from '/@/utils/tc'
 import { connectVnc, type VncConnectionData } from '/@/utils/vnc'
 import { imgLogo, imgCancelTest, imgRemoteConnect, imgSuccess, imgFail, imgSearchAvatar, imgNoUser } from './images'
@@ -253,6 +253,20 @@ const fetchAvailableHosts: PanelApi['fetchAvailableHosts'] = async ({tcId, lastI
   }
 }
 
+const fetchHostStats: PanelApi['fetchHostStats'] = async ({tcId}) => {
+  const params = {
+    tc_id: tcId,
+    cycle_name: getCycle() ?? '',
+    user_name: props.userInfo?.full_name ?? '',
+  }
+  try {
+    const res = await fetchHostStatsApi(params)
+    return res.data
+  } catch (e) {
+    throw wrapApiError(e, 'HOST stats API', '/api/v1/host/hosts/stats', params)
+  }
+}
+
 const fetchOccupiedHosts: PanelApi['fetchOccupiedHosts'] = async ({cursor, pageSize}) => {
   const params = {
     user_id: props.userInfo?.full_name ?? '',
@@ -313,6 +327,7 @@ provide(PANEL_API_KEY, {
   showResult,
   hideIndicator,
   fetchAvailableHosts,
+  fetchHostStats,
   fetchOccupiedHosts,
   releaseHost,
   connectHost,

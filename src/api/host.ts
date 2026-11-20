@@ -11,6 +11,29 @@ const urls = {
     release: `/host/hosts/release`,
     connect: `/host/hosts/vnc/connect`,
     report: `/host/hosts/vnc/report`,
+    stats: `/host/hosts/stats`,
+}
+
+/** 状态统计条请求（独立于分页列表） */
+export interface HostStatsQuery {
+    tc_id: string
+    cycle_name: string
+    user_name: string
+}
+
+/** 状态统计条接口原始返回（snake_case） */
+export interface HostStatsRaw {
+    total: number
+    free: number
+    occupied: number
+    running: number
+    offline: number
+}
+
+/** 状态统计条接口包装响应 */
+export interface HostStatsPage {
+    code: number
+    data: HostStatsRaw
 }
 
 /** HOST 状态统计（Let's Test 顶部统计条使用） */
@@ -130,3 +153,13 @@ export const reportConnect = (data: Record<any, any>) => proxyFetch(urls.connect
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
 })
+
+/**
+ * Get host status stats（独立接口，与 available 分页解耦）
+ */
+export const fetchHostStats = (data: HostStatsQuery) =>
+    proxyFetch<HostStatsPage>(urls.stats, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    })

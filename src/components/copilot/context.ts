@@ -3,6 +3,7 @@ import type {
   AvailableHostPage,
   AvailableHostVO,
   HostListPage,
+  HostStatsRaw,
   HostStatusStats,
   OccupiedHostVO,
 } from '/@/api/host'
@@ -73,6 +74,8 @@ export interface PanelApi {
   hideIndicator(): void
   /** 拉取 Let's Test 可用 HOST（分页：last_id=上一页最后host_id，首屏不传） */
   fetchAvailableHosts(params: { tcId: string; lastId?: string; pageSize: number }): Promise<AvailableHostPage>
+  /** 拉取 Let's Test 顶部状态统计（独立接口，与分页解耦） */
+  fetchHostStats(params: { tcId: string }): Promise<HostStatsRaw>
   /** 拉取 My HOST 待恢复 HOST（游标分页） */
   fetchOccupiedHosts(params: { cursor: string | null; pageSize: number }): Promise<HostListPage<CopilotOccupiedHost>>
   /** 释放 HOST（Cancel Test） */

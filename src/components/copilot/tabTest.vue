@@ -98,7 +98,7 @@ const setState = (next: TestState) => {
 
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e || 'Unknown error'))
 
-/** 按 TC_ID 加载 HOST 列表：首屏重置并写入接口 stats */
+/** 按 TC_ID 加载 HOST 列表：首屏重置并并行拉取独立 stats 接口 */
 const loadHostList = async (tcId: string) => {
   const seq = ++requestSeq
   selectedTcId.value = tcId
@@ -108,15 +108,29 @@ const loadHostList = async (tcId: string) => {
   hasMore.value = false
   loadError.value = ''
   setState('loading')
+  // 重置统计，等 stats 接口返回后再填充
+  stats.value = { Free: 0, Occupied: 0, Running: 0, Offline: 0 }
   try {
-    const page = await panel?.fetchAvailableHosts({ tcId, pageSize: PAGE_SIZE })
+    // 列表 + 统计并行请求（统计接口独立于分页）
+    const [page, statsRaw] = await Promise.all([
+      panel?.fetchAvailableHosts({ tcId, pageSize: PAGE_SIZE }),
+      panel?.fetchHostStats({ tcId }),
+    ])
     if (!page) throw new Error('Panel API unavailable')
     if (seq !== requestSeq) return
     hosts.value = page.data.hosts
     total.value = page.data.total
     lastId.value = page.data.last_id ?? null
     hasMore.value = page.data.has_next
-    // stats.value = page.stats
+    // 独立 stats 接口返回（snake_case），映射到 PascalCase
+    if (statsRaw) {
+      stats.value = {
+        Free: statsRaw.free,
+        Occupied: statsRaw.occupied,
+        Running: statsRaw.running,
+        Offline: statsRaw.offline,
+      }
+    }
     setState(page.data.hosts.length > 0 ? 'selected' : 'no-match')
   } catch (e) {
     if (seq !== requestSeq) return
@@ -144,7 +158,6 @@ const loadMore = async () => {
     total.value = page.data.total
     lastId.value = page.data.last_id ?? null
     hasMore.value = page.data.has_next
-    // stats.value = page.stats
   } catch {
     // 保留游标，等待下次滚动重试
   } finally {
